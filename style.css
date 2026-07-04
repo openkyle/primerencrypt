@@ -1,0 +1,97 @@
+.encryption .decrypted {
+	color: #159947;
+	font-weight: 600;
+}
+
+.encryption.gamemaster {
+	cursor: pointer;
+}
+
+.encryption.gamemaster::before,
+.encryption.gamemaster::after {
+	content: "■";
+	padding: 0 0.25rem;
+}
+
+.encryption.gamemaster > span {
+	display: none;
+}
+
+.encryption.gamemaster[data-show='encrypted'] .encrypted,
+.encryption.gamemaster[data-show='players'] .players,
+.encryption.gamemaster[data-show='plain'] .plain {
+	display: inline;
+}
+
+.primerencrypt-settings {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.primerencrypt-section {
+	border: 1px solid rgba(0, 0, 0, 0.2);
+	border-radius: 6px;
+	padding: 0.75rem;
+}
+
+.primerencrypt-section > label {
+	display: block;
+	font-weight: 700;
+	margin-bottom: 0.4rem;
+}
+
+.primerencrypt-section p {
+	margin: 0.45rem 0 0;
+	line-height: 1.35;
+}
+
+.primerencrypt-cipher-grid {
+	display: grid;
+	grid-template-columns: repeat(13, minmax(28px, 1fr));
+	gap: 0.35rem;
+}
+
+.cipher-cell {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	text-align: center;
+}
+
+.cipher-cell span {
+	font-size: 0.75rem;
+	font-weight: 700;
+}
+
+.cipher-cell input {
+	text-align: center;
+	text-transform: uppercase;
+}
+
+.cipher-cell input.invalid,
+.primerencrypt-knowledge .duplicate {
+	border-color: #b00020;
+	color: #b00020;
+	font-weight: 700;
+}
+
+.cipher-warning {
+	color: #b00020;
+	font-weight: 700;
+}
+
+.primerencrypt-knowledge {
+	max-height: 280px;
+	overflow: auto;
+}
+
+.primerencrypt-knowledge table {
+	width: 100%;
+	text-align: center;
+}
+
+.primerencrypt-knowledge th:first-child,
+.primerencrypt-knowledge td:first-child {
+	text-align: left;
+}

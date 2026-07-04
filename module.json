@@ -3,10 +3,10 @@
 	"title": "Primer Encrypt",
 	"authors": [
 		{
-			"name": "Knoself",
-			"discord": "knoself"
+			"name": "OpenKyle"
 		}
 	],
+	"description": "Primer-based encryption for DnD5e journals, items, and chat using simple fixed ciphers or advanced redrawn substitutions.",
 	"esmodules": ["main.js"],
 	"styles": ["style.css"],
 	"compatibility": {
@@ -35,21 +35,10 @@
 				"ASSISTANT": "OWNER"
 			},
 			"system": "dnd5e"
-		},
-		{
-			"name": "macros",
-			"label": "Macros",
-			"path": "packs/macros",
-			"type": "Macro",
-			"ownership": {
-				"PLAYER": "OBSERVER",
-				"ASSISTANT": "OWNER"
-			},
-			"system": "dnd5e"
 		}
 	],
-	"version": "0.1",
-    "manifest": "https://github.com/edgedoggo/primerencrypt/releases/download/latest/module.json",
-    "download": "https://github.com/edgedoggo/primerencrypt/releases/download/latest/primerencrypt.zip"
-
+	"version": "1.0.0",
+	"url": "https://github.com/openkyle/primerencrypt",
+	"manifest": "https://github.com/openkyle/primerencrypt/releases/latest/download/module.json",
+	"download": "https://github.com/openkyle/primerencrypt/releases/latest/download/primerencrypt.zip"
 }
