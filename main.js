@@ -29,6 +29,33 @@ function userKnownLetters(user = game.user) {
 	return new Set([...known.toUpperCase()].filter((letter) => ALPHABET.includes(letter)));
 }
 
+function knownLettersString(user = game.user) {
+	return [...userKnownLetters(user)].sort().join('');
+}
+
+async function setUserKnownLetters(user, letters) {
+	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
+	if (known) await user.setFlag(MODULE_ID, 'knownLetters', known);
+	else await user.unsetFlag(MODULE_ID, 'knownLetters');
+	refreshEncryptions();
+}
+
+async function grantLetterToUser(user, letter) {
+	const upper = letter.toUpperCase();
+	if (!ALPHABET.includes(upper)) return false;
+
+	const known = userKnownLetters(user);
+	if (known.has(upper)) {
+		ui.notifications.warn(`${user.name} already understands ${upper}.`);
+		return false;
+	}
+
+	known.add(upper);
+	await setUserKnownLetters(user, [...known].join(''));
+	ChatMessage.create({ content: `${user.name} has learned to decrypt the letter <b>${upper}</b>.` });
+	return true;
+}
+
 function allKnownLetters() {
 	const letters = new Set();
 	for (const user of game.users.players) {
@@ -158,20 +185,173 @@ function getPrimerLetter(item) {
 	return flagLetter || namedLetter;
 }
 
+function isPrimerItem(item) {
+	return Boolean(item?.name?.toLowerCase().includes('primer'));
+}
+
 async function processPrimer(item, options) {
 	const letter = getPrimerLetter(item);
-	if (!options.consumeUsage || !letter) return;
+	if (!options.consumeUsage || !isPrimerItem(item)) return;
 
-	const known = userKnownLetters(game.user);
-	const upper = letter.toUpperCase();
-	if (known.has(upper)) {
-		ui.notifications.error(`You have already learned to decrypt ${upper}.`);
-		return false;
+	if (!letter) {
+		await postPrimerChoiceCard(game.user, item.name);
+		return;
 	}
 
-	known.add(upper);
-	await game.user.setFlag(MODULE_ID, 'knownLetters', [...known].sort().join(''));
-	ChatMessage.create({ content: `You have learned to decrypt the letter <b>${upper}</b>.` });
+	const granted = await grantLetterToUser(game.user, letter);
+	if (!granted) return false;
+}
+
+function primerCardButton(user, letter) {
+	return `<button type="button" data-primer-action="grant-letter" data-user-id="${user.id}" data-letter="${letter}">${letter}</button>`;
+}
+
+function primerChoiceCardContent(users, title = 'Primer Letter') {
+	const sections = users
+		.map((user) => {
+			const known = userKnownLetters(user);
+			const missing = [...ALPHABET].filter((letter) => !known.has(letter));
+			const buttons = missing.map((letter) => primerCardButton(user, letter)).join('');
+			const knownText = known.size ? [...known].sort().join(' ') : 'None';
+			return `
+				<section class="primerencrypt-card-player">
+					<h4>${user.name}</h4>
+					<p>Known: <span class="decrypted">${knownText}</span></p>
+					<div class="primerencrypt-card-grid">
+						${buttons || '<em>All letters known.</em>'}
+					</div>
+					<button type="button" data-primer-action="grant-random" data-user-id="${user.id}">Grant Random Unknown Letter</button>
+				</section>`;
+		})
+		.join('');
+	return `<div class="primerencrypt-chat-card"><h3>${title}</h3>${sections}</div>`;
+}
+
+async function postPrimerChoiceCard(user = game.user, itemName = 'Ancient Language Primer') {
+	const whisper = ChatMessage.getWhisperRecipients('GM').map((gm) => gm.id);
+	await ChatMessage.create({
+		content: primerChoiceCardContent([user], `${itemName}: which letter should ${user.name} understand?`),
+		whisper,
+	});
+}
+
+async function postMenuPrimerCard() {
+	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can grant primer letters.');
+	await ChatMessage.create({
+		content: primerChoiceCardContent(game.users.players, 'Primer Encrypt: grant a letter'),
+	});
+}
+
+async function handlePrimerCardClick(event) {
+	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can grant primer letters.');
+
+	const button = event.currentTarget;
+	const user = game.users.get(button.dataset.userId);
+	if (!user) return;
+
+	if (button.dataset.primerAction === 'grant-random') {
+		const known = userKnownLetters(user);
+		const missing = [...ALPHABET].filter((letter) => !known.has(letter));
+		if (!missing.length) return ui.notifications.warn(`${user.name} already understands every letter.`);
+		await grantLetterToUser(user, randomFrom(missing));
+		return;
+	}
+
+	await grantLetterToUser(user, button.dataset.letter);
+}
+
+function knownLettersDisplay(user) {
+	const known = knownLettersString(user);
+	return known ? known.split('').join(' ') : 'None';
+}
+
+function primerKnowledgePanel(item) {
+	const users = game.user.isGM ? game.users.players : [game.user];
+	const rows = users
+		.map((user) => {
+			return `<tr><th>${user.name}</th><td><span class="decrypted">${knownLettersDisplay(user)}</span></td></tr>`;
+		})
+		.join('');
+	return `
+		<section class="primerencrypt-item-knowledge">
+			<h3>Understood Letters</h3>
+			<table>${rows}</table>
+			${item.parent ? '<p>This primer can be used to ask the GM which letter should be learned.</p>' : ''}
+		</section>`;
+}
+
+function renderPrimerItemSheet(app, html) {
+	if (!isPrimerItem(app.item)) return;
+	if (html.find('.primerencrypt-item-knowledge').length) return;
+
+	const target = html.find('.tab.description, .description, [data-tab="description"]').first();
+	if (target.length) target.append(primerKnowledgePanel(app.item));
+	else html.find('form').append(primerKnowledgePanel(app.item));
+}
+
+function genericPrimerData() {
+	return {
+		name: 'Ancient Language Primer',
+		type: 'consumable',
+		img: 'icons/magic/symbols/chevron-elipse-circle-blue.webp',
+		system: {
+			description: {
+				value:
+					'<p>A primer contains a translation cypher for understanding the ancient language of the Muf. A character who has a primer can read it and attempt to learn a single letter.</p><p>On an INT / REL / HIS / CUL DC14 success, the character learns and is granted the ability to select which letter they would learn, which will always render it in cleartext from that point.</p><p>On a fail, the character learns a random letter instead.</p>',
+				chat: '',
+			},
+			source: {},
+			identified: true,
+			unidentified: { description: '' },
+			container: null,
+			quantity: 1,
+			weight: 0,
+			price: { value: 0, denomination: 'gp' },
+			rarity: 'artifact',
+			attunement: 0,
+			activation: { type: 'special', cost: null, condition: '' },
+			duration: { value: '', units: '' },
+			cover: null,
+			crewed: false,
+			target: { value: null, width: null, units: '', type: 'self', prompt: true },
+			range: { value: null, long: null, units: '' },
+			uses: { value: 1, max: '1', per: 'charges', recovery: '', prompt: true, autoDestroy: true },
+			consume: { type: '', target: null, amount: null, scale: false },
+			ability: '',
+			actionType: '',
+			attackBonus: '',
+			chatFlavor: '',
+			critical: { threshold: null, damage: '' },
+			damage: { parts: [], versatile: '' },
+			formula: '',
+			save: { ability: '', dc: null, scaling: 'spell' },
+			type: { value: 'potion', subtype: '' },
+			properties: [],
+			equipped: false,
+		},
+		effects: [],
+		flags: {
+			[MODULE_ID]: { genericPrimer: true },
+		},
+		ownership: {
+			default: CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,
+		},
+	};
+}
+
+async function ensureGenericPrimerCompendiumItem() {
+	if (!game.user.isGM) return;
+
+	const pack = game.packs.get(`${MODULE_ID}.primers`);
+	if (!pack) return;
+
+	await pack.getIndex({ fields: ['name'] });
+	if (pack.index.some((entry) => entry.name === 'Ancient Language Primer')) return;
+
+	const wasLocked = pack.locked;
+	if (wasLocked) await pack.configure({ locked: false });
+	await Item.create(genericPrimerData(), { pack: pack.collection });
+	if (wasLocked) await pack.configure({ locked: true });
 }
 
 async function resetAllPrimers() {
@@ -206,11 +386,16 @@ class PrimerEncryptMenu extends FormApplication {
 			method,
 			cipher,
 			isGM: game.user.isGM,
+			players: game.users.players.map((player) => ({
+				id: player.id,
+				name: player.name,
+			})),
 			rows: [...ALPHABET].map((plain, index) => ({
 				plain,
 				cipher: cipher[index] || '',
 				duplicate: duplicateLetters.has(cipher[index]),
 				players: game.users.players.map((player) => ({
+					id: player.id,
 					name: player.name,
 					known: userKnownLetters(player).has(plain),
 				})),
@@ -253,7 +438,7 @@ class PrimerEncryptMenu extends FormApplication {
 								<tr>
 									<th>Letter</th>
 									<th>Cipher</th>
-									${game.users.players.map((player) => `<th>${player.name}</th>`).join('')}
+									${data.players.map((player) => `<th>${player.name}</th>`).join('')}
 								</tr>
 							</thead>
 							<tbody>
@@ -263,7 +448,15 @@ class PrimerEncryptMenu extends FormApplication {
 											<tr>
 												<td>${row.plain}</td>
 												<td class="${row.duplicate ? 'duplicate' : ''}">${row.cipher}</td>
-												${row.players.map((player) => `<td>${player.known ? 'Known' : '-'}</td>`).join('')}
+												${row.players
+													.map(
+														(player) => `
+															<td>
+																<input type="checkbox" name="known-${player.id}-${row.plain}" ${player.known ? 'checked' : ''} ${data.isGM ? '' : 'disabled'}>
+															</td>
+														`,
+													)
+													.join('')}
 											</tr>
 										`,
 									)
@@ -273,7 +466,7 @@ class PrimerEncryptMenu extends FormApplication {
 					</div>
 				</section>
 				<footer class="sheet-footer flexrow">
-					${data.isGM ? '<button type="button" data-action="reset">Reset Learned Letters</button><button type="submit">Save</button>' : '<button type="button" data-action="close">Close</button>'}
+					${data.isGM ? '<button type="button" data-action="chat-card">Post Grant Card</button><button type="button" data-action="reset">Reset Learned Letters</button><button type="submit">Save</button>' : '<button type="button" data-action="close">Close</button>'}
 				</footer>
 			</form>`;
 		return $(html);
@@ -289,6 +482,7 @@ class PrimerEncryptMenu extends FormApplication {
 			await resetAllPrimers();
 			this.render();
 		});
+		html.find('[data-action="chat-card"]').on('click', () => postMenuPrimerCard());
 		html.find('[data-action="close"]').on('click', () => this.close());
 	}
 
@@ -317,6 +511,12 @@ class PrimerEncryptMenu extends FormApplication {
 
 		await game.settings.set(MODULE_ID, 'method', formData.method);
 		await game.settings.set(MODULE_ID, 'cipher', normalized);
+		await Promise.all(
+			game.users.players.map((player) => {
+				const letters = [...ALPHABET].filter((letter) => formData[`known-${player.id}-${letter}`]);
+				return setUserKnownLetters(player, letters.join(''));
+			}),
+		);
 		ui.notifications.info('Primer Encrypt settings saved.');
 		refreshEncryptions();
 		this.render();
@@ -359,7 +559,7 @@ function registerSettings() {
 	game.settings.registerMenu(MODULE_ID, 'menu', {
 		name: 'Primer Encrypt',
 		label: 'Open Primer Encrypt',
-		hint: 'Choose Simple or Advanced encryption, edit the cipher, and review which primer letters players know.',
+		hint: 'Choose Simple or Advanced encryption, edit the cipher, grant primer letters, and review which letters players know.',
 		icon: 'fas fa-key',
 		type: PrimerEncryptMenu,
 		restricted: false,
@@ -368,8 +568,15 @@ function registerSettings() {
 
 Hooks.once('init', registerSettings);
 Hooks.once('setup', registerEnricher);
-Hooks.once('ready', activateListeners);
+Hooks.once('ready', () => {
+	activateListeners();
+	ensureGenericPrimerCompendiumItem();
+});
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
+Hooks.on('renderItemSheet', renderPrimerItemSheet);
+Hooks.on('renderChatMessage', (_message, html) => {
+	html.find('[data-primer-action]').on('click', handlePrimerCardClick);
+});
 Hooks.on('updateUser', (_user, changes) => {
 	if (foundry.utils.getProperty(changes, `flags.${MODULE_ID}`)) refreshEncryptions();
 });
