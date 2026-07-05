@@ -53,37 +53,51 @@ function advancedSubstitute(letter, position, wordLength) {
 	return randomFrom(position % 2 === 0 ? consonants : vowels);
 }
 
-function renderEncryptedGroups(text, knownLetters, mode) {
+function encodeHashtagWord(word, knownLetters) {
+	let result = '';
+	for (const letter of word) {
+		if (knownLetters.has(letter.toUpperCase())) result += `<span class="decrypted">${letter}</span>`;
+		else result += encodeLetter(letter);
+	}
+	return result;
+}
+
+function renderWord(word, knownLetters, mode) {
 	let groups = '';
 	let encrypted = null;
 
-	const parts = text.split(/(\s+|[,.!?;:()[\]{}"'])/);
-	for (const part of parts) {
-		if (!part || /^(\s+|[,.!?;:()[\]{}"'])$/.test(part)) {
-			if (encrypted !== null) groups += '</span>';
-			groups += part;
-			encrypted = null;
-			continue;
-		}
-
-		for (let i = 0; i < part.length; i++) {
-			const letter = part[i];
-			const known = knownLetters.has(letter.toUpperCase());
-			if (known) {
-				if (encrypted === true) groups += '</span>';
-				if (encrypted !== false) groups += '<span class="decrypted">';
-				groups += letter;
-				encrypted = false;
-			} else {
-				if (encrypted === false) groups += '</span>';
-				if (encrypted !== true) groups += '<span class="encrypted-chunk">';
-				groups += mode === 'advanced' ? advancedSubstitute(letter, i, part.length) : encodeLetter(letter);
-				encrypted = true;
-			}
+	for (let i = 0; i < word.length; i++) {
+		const letter = word[i];
+		const known = knownLetters.has(letter.toUpperCase());
+		if (known) {
+			if (encrypted === true) groups += '</span>';
+			if (encrypted !== false) groups += '<span class="decrypted">';
+			groups += letter;
+			encrypted = false;
+		} else {
+			if (encrypted === false) groups += '</span>';
+			if (encrypted !== true) groups += '<span class="encrypted-chunk">';
+			groups += mode === 'advanced' ? advancedSubstitute(letter, i, word.length) : encodeLetter(letter);
+			encrypted = true;
 		}
 	}
 
 	if (encrypted !== null) groups += '</span>';
+	return groups;
+}
+
+function renderEncryptedGroups(text, knownLetters, mode) {
+	let groups = '';
+	const parts = text.split(/(\s+|[,.!?;:()[\]{}"'])/);
+	for (const part of parts) {
+		if (!part || /^(\s+|[,.!?;:()[\]{}"'])$/.test(part)) {
+			groups += part;
+			continue;
+		}
+
+		groups += part.startsWith('#') ? encodeHashtagWord(part.slice(1), knownLetters) : renderWord(part, knownLetters, mode);
+	}
+
 	return groups;
 }
 
@@ -209,7 +223,7 @@ class PrimerEncryptMenu extends FormApplication {
 						<option value="simple" ${data.method === 'simple' ? 'selected' : ''}>Simple</option>
 						<option value="advanced" ${data.method === 'advanced' ? 'selected' : ''}>Advanced</option>
 					</select>
-					<p>Simple uses the saved cipher every time. Advanced redraws every unknown letter for players each time encrypted text is rendered, while learned primer letters remain readable.</p>
+					<p>Simple uses the saved cipher every time. Advanced redraws every unknown letter for players each time encrypted text is rendered, while learned primer letters remain readable. Prefix a word with # to force the fixed cipher path and hide the # marker.</p>
 				</section>
 				<section class="primerencrypt-section">
 					<label>Custom Cipher</label>

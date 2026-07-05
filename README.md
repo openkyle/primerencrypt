@@ -4,6 +4,8 @@ Primer Encrypt is a Foundry VTT module for DnD5e games that lets a GM hide text 
 
 Use `@encrypt[secret text]` in supported rich text. Players see encrypted text until their character uses primer items to learn letters. GMs can click encrypted text to cycle between the player view, the hard cipher view, and the plain text.
 
+Prefix a word with `#` inside encrypted text to keep the original fixed-cipher behavior for that word. The `#` marker is hidden in the rendered text, and learned primer letters still show plainly.
+
 ## Settings
 
 Open **Configure Settings > Module Settings > Primer Encrypt**.
