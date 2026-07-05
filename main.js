@@ -53,10 +53,14 @@ function advancedSubstitute(letter, position, wordLength) {
 	return randomFrom(position % 2 === 0 ? consonants : vowels);
 }
 
+function renderKnownLetter(letter) {
+	return `<span class="decrypted">${letter}</span>`;
+}
+
 function encodeHashtagWord(word, knownLetters) {
 	let result = '';
 	for (const letter of word) {
-		if (knownLetters.has(letter.toUpperCase())) result += `<span class="decrypted">${letter}</span>`;
+		if (knownLetters.has(letter.toUpperCase())) result += renderKnownLetter(letter);
 		else result += encodeLetter(letter);
 	}
 	return result;
@@ -223,7 +227,7 @@ class PrimerEncryptMenu extends FormApplication {
 						<option value="simple" ${data.method === 'simple' ? 'selected' : ''}>Simple</option>
 						<option value="advanced" ${data.method === 'advanced' ? 'selected' : ''}>Advanced</option>
 					</select>
-					<p>Simple uses the saved cipher every time. Advanced redraws every unknown letter for players each time encrypted text is rendered, while learned primer letters remain readable. Prefix a word with # to force the fixed cipher path and hide the # marker.</p>
+					<p>Simple uses the saved cipher every time. Advanced redraws every unknown letter for players each time encrypted text is rendered. Learned primer letters render as the real character in green. Prefix a word with # to force the fixed cipher path and hide the # marker.</p>
 				</section>
 				<section class="primerencrypt-section">
 					<label>Custom Cipher</label>

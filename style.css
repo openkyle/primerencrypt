@@ -1,6 +1,5 @@
 .encryption .decrypted {
-	color: #159947;
-	font-weight: 600;
+	color: green;
 }
 
 .encryption.gamemaster {
