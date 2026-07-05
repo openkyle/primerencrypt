@@ -45,6 +45,17 @@
 	line-height: 1.35;
 }
 
+.primerencrypt-toggle {
+	align-items: center;
+	display: flex;
+	gap: 0.45rem;
+	margin: 0.2rem 0 0.6rem;
+}
+
+.primerencrypt-toggle input {
+	margin: 0;
+}
+
 .primerencrypt-cipher-grid {
 	display: grid;
 	grid-template-columns: repeat(13, minmax(28px, 1fr));
@@ -102,8 +113,7 @@
 }
 
 .primerencrypt-chat-card h3,
-.primerencrypt-chat-card h4,
-.primerencrypt-item-knowledge h3 {
+.primerencrypt-chat-card h4 {
 	margin: 0.35rem 0;
 }
 
@@ -123,19 +133,4 @@
 .primerencrypt-card-grid button {
 	min-width: 0;
 	padding: 0.15rem;
-}
-
-.primerencrypt-item-knowledge {
-	border-top: 1px solid rgba(0, 0, 0, 0.2);
-	margin-top: 1rem;
-	padding-top: 0.75rem;
-}
-
-.primerencrypt-item-knowledge table {
-	width: 100%;
-}
-
-.primerencrypt-item-knowledge th {
-	text-align: left;
-	width: 35%;
 }

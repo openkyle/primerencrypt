@@ -25,18 +25,35 @@ function encodeLetter(letter) {
 }
 
 function userKnownLetters(user = game.user) {
+	if (setting('sharedKnowledge')) return sharedKnownLetters();
+	return rawUserKnownLetters(user);
+}
+
+function rawUserKnownLetters(user = game.user) {
 	const known = user.getFlag(MODULE_ID, 'knownLetters') || '';
 	return new Set([...known.toUpperCase()].filter((letter) => ALPHABET.includes(letter)));
 }
 
-function knownLettersString(user = game.user) {
-	return [...userKnownLetters(user)].sort().join('');
+function sharedKnownLetters() {
+	const known = setting('sharedKnownLetters') || '';
+	return new Set([...known.toUpperCase()].filter((letter) => ALPHABET.includes(letter)));
 }
 
 async function setUserKnownLetters(user, letters) {
+	if (setting('sharedKnowledge')) {
+		await setSharedKnownLetters(letters);
+		return;
+	}
+
 	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
 	if (known) await user.setFlag(MODULE_ID, 'knownLetters', known);
 	else await user.unsetFlag(MODULE_ID, 'knownLetters');
+	refreshEncryptions();
+}
+
+async function setSharedKnownLetters(letters) {
+	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
+	await game.settings.set(MODULE_ID, 'sharedKnownLetters', known);
 	refreshEncryptions();
 }
 
@@ -46,20 +63,21 @@ async function grantLetterToUser(user, letter) {
 
 	const known = userKnownLetters(user);
 	if (known.has(upper)) {
-		ui.notifications.warn(`${user.name} already understands ${upper}.`);
+		ui.notifications.warn(setting('sharedKnowledge') ? `Players already understand ${upper}.` : `${user.name} already understands ${upper}.`);
 		return false;
 	}
 
 	known.add(upper);
 	await setUserKnownLetters(user, [...known].join(''));
-	ChatMessage.create({ content: `${user.name} has learned to decrypt the letter <b>${upper}</b>.` });
+	ChatMessage.create({ content: `${setting('sharedKnowledge') ? 'Players have' : `${user.name} has`} learned to decrypt the letter <b>${upper}</b>.` });
 	return true;
 }
 
 function allKnownLetters() {
+	if (setting('sharedKnowledge')) return sharedKnownLetters();
 	const letters = new Set();
 	for (const user of game.users.players) {
-		for (const letter of userKnownLetters(user)) letters.add(letter);
+		for (const letter of rawUserKnownLetters(user)) letters.add(letter);
 	}
 	return letters;
 }
@@ -203,13 +221,15 @@ async function processPrimer(item, options) {
 }
 
 function primerCardButton(user, letter) {
-	return `<button type="button" data-primer-action="grant-letter" data-user-id="${user.id}" data-letter="${letter}">${letter}</button>`;
+	const userId = user?.id || '';
+	return `<button type="button" data-primer-action="grant-letter" data-user-id="${userId}" data-letter="${letter}">${letter}</button>`;
 }
 
 function primerChoiceCardContent(users, title = 'Primer Letter') {
-	const sections = users
+	const grantTargets = setting('sharedKnowledge') ? [{ id: '', name: 'Players', shared: true }] : users;
+	const sections = grantTargets
 		.map((user) => {
-			const known = userKnownLetters(user);
+			const known = user.shared ? sharedKnownLetters() : userKnownLetters(user);
 			const missing = [...ALPHABET].filter((letter) => !known.has(letter));
 			const buttons = missing.map((letter) => primerCardButton(user, letter)).join('');
 			const knownText = known.size ? [...known].sort().join(' ') : 'None';
@@ -230,7 +250,7 @@ function primerChoiceCardContent(users, title = 'Primer Letter') {
 async function postPrimerChoiceCard(user = game.user, itemName = 'Ancient Language Primer') {
 	const whisper = ChatMessage.getWhisperRecipients('GM').map((gm) => gm.id);
 	await ChatMessage.create({
-		content: primerChoiceCardContent([user], `${itemName}: which letter should ${user.name} understand?`),
+		content: primerChoiceCardContent([user], `${itemName}: which letter should ${setting('sharedKnowledge') ? 'players' : user.name} understand?`),
 		whisper,
 	});
 }
@@ -246,47 +266,18 @@ async function handlePrimerCardClick(event) {
 	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can grant primer letters.');
 
 	const button = event.currentTarget;
-	const user = game.users.get(button.dataset.userId);
+	const user = setting('sharedKnowledge') ? game.user : game.users.get(button.dataset.userId);
 	if (!user) return;
 
 	if (button.dataset.primerAction === 'grant-random') {
 		const known = userKnownLetters(user);
 		const missing = [...ALPHABET].filter((letter) => !known.has(letter));
-		if (!missing.length) return ui.notifications.warn(`${user.name} already understands every letter.`);
+		if (!missing.length) return ui.notifications.warn(`${setting('sharedKnowledge') ? 'Players already understand' : `${user.name} already understands`} every letter.`);
 		await grantLetterToUser(user, randomFrom(missing));
 		return;
 	}
 
 	await grantLetterToUser(user, button.dataset.letter);
-}
-
-function knownLettersDisplay(user) {
-	const known = knownLettersString(user);
-	return known ? known.split('').join(' ') : 'None';
-}
-
-function primerKnowledgePanel(item) {
-	const users = game.user.isGM ? game.users.players : [game.user];
-	const rows = users
-		.map((user) => {
-			return `<tr><th>${user.name}</th><td><span class="decrypted">${knownLettersDisplay(user)}</span></td></tr>`;
-		})
-		.join('');
-	return `
-		<section class="primerencrypt-item-knowledge">
-			<h3>Understood Letters</h3>
-			<table>${rows}</table>
-			${item.parent ? '<p>This primer can be used to ask the GM which letter should be learned.</p>' : ''}
-		</section>`;
-}
-
-function renderPrimerItemSheet(app, html) {
-	if (!isPrimerItem(app.item)) return;
-	if (html.find('.primerencrypt-item-knowledge').length) return;
-
-	const target = html.find('.tab.description, .description, [data-tab="description"]').first();
-	if (target.length) target.append(primerKnowledgePanel(app.item));
-	else html.find('form').append(primerKnowledgePanel(app.item));
 }
 
 function genericPrimerData() {
@@ -357,6 +348,7 @@ async function ensureGenericPrimerCompendiumItem() {
 async function resetAllPrimers() {
 	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can reset primer knowledge.');
 
+	await setSharedKnownLetters('');
 	await Promise.all(
 		game.users.players.map(async (player) => {
 			await player.unsetFlag(MODULE_ID, 'knownLetters');
@@ -381,10 +373,13 @@ class PrimerEncryptMenu extends FormApplication {
 	getData() {
 		const cipher = normalizeCipher(setting('cipher')) || DEFAULT_CIPHER;
 		const method = setting('method');
+		const sharedKnowledge = setting('sharedKnowledge');
+		const sharedLetters = sharedKnownLetters();
 		const duplicateLetters = duplicateCipherLetters(cipher);
 		return {
 			method,
 			cipher,
+			sharedKnowledge,
 			isGM: game.user.isGM,
 			players: game.users.players.map((player) => ({
 				id: player.id,
@@ -394,6 +389,7 @@ class PrimerEncryptMenu extends FormApplication {
 				plain,
 				cipher: cipher[index] || '',
 				duplicate: duplicateLetters.has(cipher[index]),
+				sharedKnown: sharedLetters.has(plain),
 				players: game.users.players.map((player) => ({
 					id: player.id,
 					name: player.name,
@@ -432,13 +428,17 @@ class PrimerEncryptMenu extends FormApplication {
 				</section>
 				<section class="primerencrypt-section">
 					<label>Primer Knowledge</label>
+					<label class="primerencrypt-toggle">
+						<input type="checkbox" name="sharedKnowledge" ${data.sharedKnowledge ? 'checked' : ''} ${data.isGM ? '' : 'disabled'}>
+						<span>Primer knowledge is the same for all players</span>
+					</label>
 					<div class="primerencrypt-knowledge">
 						<table>
 							<thead>
 								<tr>
 									<th>Letter</th>
 									<th>Cipher</th>
-									${data.players.map((player) => `<th>${player.name}</th>`).join('')}
+									${data.sharedKnowledge ? '<th>Players</th>' : data.players.map((player) => `<th>${player.name}</th>`).join('')}
 								</tr>
 							</thead>
 							<tbody>
@@ -448,15 +448,19 @@ class PrimerEncryptMenu extends FormApplication {
 											<tr>
 												<td>${row.plain}</td>
 												<td class="${row.duplicate ? 'duplicate' : ''}">${row.cipher}</td>
-												${row.players
-													.map(
-														(player) => `
-															<td>
-																<input type="checkbox" name="known-${player.id}-${row.plain}" ${player.known ? 'checked' : ''} ${data.isGM ? '' : 'disabled'}>
-															</td>
-														`,
-													)
-													.join('')}
+												${
+													data.sharedKnowledge
+														? `<td><input type="checkbox" name="known-shared-${row.plain}" ${row.sharedKnown ? 'checked' : ''} ${data.isGM ? '' : 'disabled'}></td>`
+														: row.players
+																.map(
+																	(player) => `
+																		<td>
+																			<input type="checkbox" name="known-${player.id}-${row.plain}" ${player.known ? 'checked' : ''} ${data.isGM ? '' : 'disabled'}>
+																		</td>
+																	`,
+																)
+																.join('')
+												}
 											</tr>
 										`,
 									)
@@ -501,6 +505,10 @@ class PrimerEncryptMenu extends FormApplication {
 	async _updateObject(_event, formData) {
 		if (!game.user.isGM) return;
 
+		const wasSharedKnowledge = setting('sharedKnowledge');
+		const previousSharedLetters = [...sharedKnownLetters()].join('');
+		const previousPlayerLetters = Object.fromEntries(game.users.players.map((player) => [player.id, [...rawUserKnownLetters(player)].join('')]));
+		const previousPlayerUnion = [...new Set(Object.values(previousPlayerLetters).join('').split('').filter(Boolean))].sort().join('');
 		const cipher = [...Array(26)].map((_, index) => formData[`cipher-${index}`] || '').join('');
 		const normalized = normalizeCipher(cipher);
 		if (normalized.length !== 26 || new Set([...normalized]).size !== 26) {
@@ -511,12 +519,22 @@ class PrimerEncryptMenu extends FormApplication {
 
 		await game.settings.set(MODULE_ID, 'method', formData.method);
 		await game.settings.set(MODULE_ID, 'cipher', normalized);
-		await Promise.all(
-			game.users.players.map((player) => {
-				const letters = [...ALPHABET].filter((letter) => formData[`known-${player.id}-${letter}`]);
-				return setUserKnownLetters(player, letters.join(''));
-			}),
-		);
+		await game.settings.set(MODULE_ID, 'sharedKnowledge', Boolean(formData.sharedKnowledge));
+
+		if (formData.sharedKnowledge) {
+			const hasSharedInputs = [...ALPHABET].some((letter) => Object.prototype.hasOwnProperty.call(formData, `known-shared-${letter}`));
+			const letters = hasSharedInputs ? [...ALPHABET].filter((letter) => formData[`known-shared-${letter}`]).join('') : previousPlayerUnion;
+			await setSharedKnownLetters(letters);
+		} else {
+			const hasPlayerInputs = game.users.players.some((player) => [...ALPHABET].some((letter) => Object.prototype.hasOwnProperty.call(formData, `known-${player.id}-${letter}`)));
+			await Promise.all(
+				game.users.players.map((player) => {
+					const letters = hasPlayerInputs ? [...ALPHABET].filter((letter) => formData[`known-${player.id}-${letter}`]).join('') : wasSharedKnowledge ? previousSharedLetters : previousPlayerLetters[player.id];
+					return setUserKnownLetters(player, letters);
+				}),
+			);
+		}
+
 		ui.notifications.info('Primer Encrypt settings saved.');
 		refreshEncryptions();
 		this.render();
@@ -556,6 +574,24 @@ function registerSettings() {
 		onChange: refreshEncryptions,
 	});
 
+	game.settings.register(MODULE_ID, 'sharedKnowledge', {
+		name: 'Primer knowledge is the same for all players',
+		scope: 'world',
+		config: false,
+		type: Boolean,
+		default: true,
+		onChange: refreshEncryptions,
+	});
+
+	game.settings.register(MODULE_ID, 'sharedKnownLetters', {
+		name: 'Shared Known Letters',
+		scope: 'world',
+		config: false,
+		type: String,
+		default: '',
+		onChange: refreshEncryptions,
+	});
+
 	game.settings.registerMenu(MODULE_ID, 'menu', {
 		name: 'Primer Encrypt',
 		label: 'Open Primer Encrypt',
@@ -573,7 +609,6 @@ Hooks.once('ready', () => {
 	ensureGenericPrimerCompendiumItem();
 });
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
-Hooks.on('renderItemSheet', renderPrimerItemSheet);
 Hooks.on('renderChatMessage', (_message, html) => {
 	html.find('[data-primer-action]').on('click', handlePrimerCardClick);
 });
