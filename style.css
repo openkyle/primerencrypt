@@ -125,12 +125,22 @@
 
 .primerencrypt-card-grid {
 	display: grid;
-	grid-template-columns: repeat(13, minmax(26px, 1fr));
+	grid-template-columns: repeat(6, minmax(28px, 1fr));
 	gap: 0.25rem;
 	margin: 0.4rem 0;
 }
 
-.primerencrypt-card-grid button {
+.primerencrypt-card-grid button,
+.primerencrypt-check-grid button {
+	font-size: 0.8rem;
+	line-height: 1;
 	min-width: 0;
-	padding: 0.15rem;
+	padding: 0.2rem;
+}
+
+.primerencrypt-check-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(40px, 1fr));
+	gap: 0.25rem;
+	margin: 0.4rem 0;
 }

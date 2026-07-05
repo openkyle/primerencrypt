@@ -15,8 +15,8 @@ Open **Configure Settings > Module Settings > Primer Encrypt**.
 - **Custom Cipher** lets the GM set a full substitution alphabet. The cipher must include all 26 letters exactly once; reused letters are highlighted in red and cannot be saved.
 - **Primer knowledge is the same for all players** is enabled by default and shows one shared Players column. Turn it off to manage letters per player.
 - **Primer Knowledge** lets the GM check or uncheck which primer letters players have learned.
-- **Post Grant Card** creates a chat card with letter buttons so the GM can grant primer knowledge directly from chat.
+- **Post Grant Card** creates a chat card with only missing letter buttons so the GM can grant primer knowledge directly from chat.
 
 ## Compendiums
 
-The module includes primer items for DnD5e worlds. GMs also get an **Ancient Language Primer** compendium item, which asks the GM which letter should be understood when used. Learned primer letters can be reset from the Primer Encrypt settings menu.
+The module keeps a single **Ancient Language Primer** compendium item. When used, it posts the primer text and DC14 INT / REL / HIS / CUL check buttons to chat. On success, the missing-letter picker appears; on failure, a random missing letter is learned. Old individual letter primers are removed from the compendium on GM load. Learned primer letters can be reset from the Primer Encrypt settings menu.

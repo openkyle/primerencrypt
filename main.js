@@ -1,6 +1,13 @@
 const MODULE_ID = 'primerencrypt';
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const DEFAULT_CIPHER = 'YPLTAVKREZGMSHUBXNCDIJFQOW';
+const PRIMER_DC = 14;
+const PRIMER_CHECKS = {
+	int: { label: 'INT', type: 'ability', key: 'int' },
+	rel: { label: 'REL', type: 'skill', key: 'rel' },
+	his: { label: 'HIS', type: 'skill', key: 'his' },
+	cul: { label: 'CUL', type: 'skill', key: 'cul' },
+};
 
 function setting(key) {
 	return game.settings.get(MODULE_ID, key);
@@ -225,7 +232,7 @@ function primerCardButton(user, letter) {
 	return `<button type="button" data-primer-action="grant-letter" data-user-id="${userId}" data-letter="${letter}">${letter}</button>`;
 }
 
-function primerChoiceCardContent(users, title = 'Primer Letter') {
+function primerChoiceCardContent(users, title = 'Primer Letter', { allowPlayers = false } = {}) {
 	const grantTargets = setting('sharedKnowledge') ? [{ id: '', name: 'Players', shared: true }] : users;
 	const sections = grantTargets
 		.map((user) => {
@@ -240,18 +247,32 @@ function primerChoiceCardContent(users, title = 'Primer Letter') {
 					<div class="primerencrypt-card-grid">
 						${buttons || '<em>All letters known.</em>'}
 					</div>
-					<button type="button" data-primer-action="grant-random" data-user-id="${user.id}">Grant Random Unknown Letter</button>
+					<button type="button" data-primer-action="grant-random" data-user-id="${user.id || ''}" ${allowPlayers ? 'data-allow-player="true"' : ''}>Grant Random Unknown Letter</button>
 				</section>`;
 		})
 		.join('');
-	return `<div class="primerencrypt-chat-card"><h3>${title}</h3>${sections}</div>`;
+	const content = `<div class="primerencrypt-chat-card" ${allowPlayers ? 'data-allow-player="true"' : ''}><h3>${title}</h3>${sections}</div>`;
+	return allowPlayers ? content.replaceAll('data-primer-action="grant-letter"', 'data-allow-player="true" data-primer-action="grant-letter"') : content;
+}
+
+function primerCheckCardContent(user = game.user, itemName = 'Ancient Language Primer') {
+	const userId = user.id || '';
+	const checkButtons = Object.entries(PRIMER_CHECKS)
+		.map(([check, data]) => `<button type="button" data-primer-action="roll-check" data-user-id="${userId}" data-check="${check}">${data.label}</button>`)
+		.join('');
+	return `
+		<div class="primerencrypt-chat-card primerencrypt-primer-check">
+			<h3>${itemName}</h3>
+			<p>A primer contains a translation cypher for understanding the ancient language of the Muf. A character who has a primer can read it and attempt to learn a single letter.</p>
+			<p>On an INT / REL / HIS / CUL DC${PRIMER_DC} success, the character learns and selects which letter they would learn. On a fail, the character learns a random missing letter instead.</p>
+			<p><strong>${setting('sharedKnowledge') ? 'Players' : user.name}</strong>: choose a DC${PRIMER_DC} check.</p>
+			<div class="primerencrypt-check-grid">${checkButtons}</div>
+		</div>`;
 }
 
 async function postPrimerChoiceCard(user = game.user, itemName = 'Ancient Language Primer') {
-	const whisper = ChatMessage.getWhisperRecipients('GM').map((gm) => gm.id);
 	await ChatMessage.create({
-		content: primerChoiceCardContent([user], `${itemName}: which letter should ${setting('sharedKnowledge') ? 'players' : user.name} understand?`),
-		whisper,
+		content: primerCheckCardContent(user, itemName),
 	});
 }
 
@@ -263,11 +284,17 @@ async function postMenuPrimerCard() {
 }
 
 async function handlePrimerCardClick(event) {
-	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can grant primer letters.');
-
 	const button = event.currentTarget;
 	const user = setting('sharedKnowledge') ? game.user : game.users.get(button.dataset.userId);
 	if (!user) return;
+
+	if (button.dataset.primerAction === 'roll-check') {
+		await rollPrimerCheck(user, button.dataset.check);
+		return;
+	}
+
+	const playerAllowed = button.dataset.allowPlayer === 'true' && (setting('sharedKnowledge') || user.id === game.user.id);
+	if (!game.user.isGM && !playerAllowed) return ui.notifications.error('Only the gamemaster can grant primer letters.');
 
 	if (button.dataset.primerAction === 'grant-random') {
 		const known = userKnownLetters(user);
@@ -278,6 +305,53 @@ async function handlePrimerCardClick(event) {
 	}
 
 	await grantLetterToUser(user, button.dataset.letter);
+}
+
+function actorForPrimerCheck(user) {
+	return user.character || canvas.tokens?.controlled?.[0]?.actor || game.actors?.find((actor) => actor.hasPlayerOwner);
+}
+
+function primerCheckBonus(actor, check) {
+	const config = PRIMER_CHECKS[check];
+	if (!actor || !config) return 0;
+	if (config.type === 'ability') return Number(foundry.utils.getProperty(actor, `system.abilities.${config.key}.mod`) || 0);
+
+	const skill = foundry.utils.getProperty(actor, `system.skills.${config.key}`);
+	if (skill?.total !== undefined) return Number(skill.total || 0);
+	if (skill?.mod !== undefined) return Number(skill.mod || 0);
+	return Number(foundry.utils.getProperty(actor, 'system.abilities.int.mod') || 0);
+}
+
+async function rollPrimerCheck(user, check) {
+	const actor = actorForPrimerCheck(user);
+	const checkData = PRIMER_CHECKS[check];
+	if (!checkData) return;
+
+	const bonus = primerCheckBonus(actor, check);
+	const roll = await new Roll(`1d20 + ${bonus}`).evaluate({ async: true });
+	const total = roll.total;
+	const success = total >= PRIMER_DC;
+	const targetUser = setting('sharedKnowledge') ? game.user : user;
+	const missing = [...ALPHABET].filter((letter) => !userKnownLetters(targetUser).has(letter));
+
+	await roll.toMessage({
+		speaker: ChatMessage.getSpeaker({ actor }),
+		flavor: `Ancient Language Primer: ${checkData.label} DC${PRIMER_DC} ${success ? 'success' : 'failure'}`,
+	});
+
+	if (!missing.length) {
+		ui.notifications.warn(`${setting('sharedKnowledge') ? 'Players already understand' : `${user.name} already understands`} every letter.`);
+		return;
+	}
+
+	if (success) {
+		await ChatMessage.create({
+			content: primerChoiceCardContent([user], `${setting('sharedKnowledge') ? 'Players' : user.name}: choose a letter to understand`, { allowPlayers: true }),
+		});
+		return;
+	}
+
+	await grantLetterToUser(targetUser, randomFrom(missing));
 }
 
 function genericPrimerData() {
@@ -330,18 +404,24 @@ function genericPrimerData() {
 	};
 }
 
-async function ensureGenericPrimerCompendiumItem() {
+async function reconcilePrimerCompendium() {
 	if (!game.user.isGM) return;
 
 	const pack = game.packs.get(`${MODULE_ID}.primers`);
 	if (!pack) return;
 
 	await pack.getIndex({ fields: ['name'] });
-	if (pack.index.some((entry) => entry.name === 'Ancient Language Primer')) return;
-
 	const wasLocked = pack.locked;
 	if (wasLocked) await pack.configure({ locked: false });
-	await Item.create(genericPrimerData(), { pack: pack.collection });
+
+	const oldPrimers = pack.index.filter((entry) => /^Primer:\s*[A-Z]$/i.test(entry.name));
+	if (oldPrimers.length) await Item.deleteDocuments(oldPrimers.map((entry) => entry._id), { pack: pack.collection });
+
+	await pack.getIndex({ fields: ['name'] });
+	if (!pack.index.some((entry) => entry.name === 'Ancient Language Primer')) {
+		await Item.create(genericPrimerData(), { pack: pack.collection });
+	}
+
 	if (wasLocked) await pack.configure({ locked: true });
 }
 
@@ -606,7 +686,7 @@ Hooks.once('init', registerSettings);
 Hooks.once('setup', registerEnricher);
 Hooks.once('ready', () => {
 	activateListeners();
-	ensureGenericPrimerCompendiumItem();
+	reconcilePrimerCompendium();
 });
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
 Hooks.on('renderChatMessage', (_message, html) => {
