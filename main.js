@@ -56,18 +56,20 @@ async function setUserKnownLetters(user, letters) {
 	}
 
 	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
+	if ([...rawUserKnownLetters(user)].join('') === known) return;
 	if (known) await user.setFlag(MODULE_ID, 'knownLetters', known);
 	else await user.unsetFlag(MODULE_ID, 'knownLetters');
 }
 
 async function setSharedKnownLetters(letters) {
 	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
-	await Promise.all(
-		game.users.players.map((player) => {
+	const updates = game.users.players
+		.filter((player) => [...rawUserKnownLetters(player)].join('') !== known)
+		.map((player) => async () => {
 			if (known) return player.setFlag(MODULE_ID, 'knownLetters', known);
 			return player.unsetFlag(MODULE_ID, 'knownLetters');
-		}),
-	);
+		});
+	for (const update of updates) await update();
 }
 
 async function grantLetterToUser(user, letter) {
@@ -388,11 +390,7 @@ async function rollPrimerCheck(user, check) {
 async function resetAllPrimers() {
 	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can reset primer knowledge.');
 
-	await Promise.all(
-		game.users.players.map(async (player) => {
-			await player.unsetFlag(MODULE_ID, 'knownLetters');
-		}),
-	);
+	for (const player of game.users.players.filter((player) => rawUserKnownLetters(player).size)) await player.unsetFlag(MODULE_ID, 'knownLetters');
 	ui.notifications.info('All Primer Encrypt letters have been unlearned.');
 }
 
@@ -521,11 +519,21 @@ class PrimerEncryptMenu extends FormApplication {
 			event.currentTarget.value = event.currentTarget.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 1);
 			this.validateCipherInputs(html);
 		});
-		html.find('[data-action="reset"]').on('click', async () => {
+		html.find('[data-action="reset"]').on('click', async (event) => {
+			event.preventDefault();
+			event.stopPropagation();
 			await resetAllPrimers();
 		});
-		html.find('[data-action="chat-card"]').on('click', () => postMenuPrimerCard());
-		html.find('[data-action="close"]').on('click', () => this.close());
+		html.find('[data-action="chat-card"]').on('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			postMenuPrimerCard();
+		});
+		html.find('[data-action="close"]').on('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			this.close();
+		});
 	}
 
 	validateCipherInputs(html) {
@@ -551,7 +559,6 @@ class PrimerEncryptMenu extends FormApplication {
 		const normalized = normalizeCipher(cipher);
 		if (normalized.length !== 26 || new Set([...normalized]).size !== 26) {
 			ui.notifications.error('Primer Encrypt needs a complete cipher using every letter A-Z exactly once.');
-			this.render();
 			return;
 		}
 
@@ -562,15 +569,20 @@ class PrimerEncryptMenu extends FormApplication {
 		if (formData.sharedKnowledge) {
 			const hasSharedInputs = [...ALPHABET].some((letter) => Object.prototype.hasOwnProperty.call(formData, `known-shared-${letter}`));
 			const letters = hasSharedInputs ? [...ALPHABET].filter((letter) => formData[`known-shared-${letter}`]).join('') : previousPlayerUnion;
-			await setSharedKnownLetters(letters);
+			if ([...sharedKnownLetters()].join('') !== letters) await setSharedKnownLetters(letters);
 		} else {
 			const hasPlayerInputs = game.users.players.some((player) => [...ALPHABET].some((letter) => Object.prototype.hasOwnProperty.call(formData, `known-${player.id}-${letter}`)));
-			await Promise.all(
-				game.users.players.map((player) => {
+			const updates = game.users.players
+				.map((player) => {
 					const letters = hasPlayerInputs ? [...ALPHABET].filter((letter) => formData[`known-${player.id}-${letter}`]).join('') : wasSharedKnowledge ? previousSharedLetters : previousPlayerLetters[player.id];
-					return setUserKnownLetters(player, letters);
-				}),
-			);
+					return { player, letters };
+				})
+				.filter(({ player, letters }) => [...rawUserKnownLetters(player)].join('') !== letters)
+				.map(({ player, letters }) => async () => {
+					if (letters) return player.setFlag(MODULE_ID, 'knownLetters', letters);
+					return player.unsetFlag(MODULE_ID, 'knownLetters');
+				});
+			for (const update of updates) await update();
 		}
 
 		ui.notifications.info('Primer Encrypt settings saved.');
