@@ -1,6 +1,7 @@
 const MODULE_ID = 'primerencrypt';
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const DEFAULT_CIPHER = 'YPLTAVKREZGMSHUBXNCDIJFQOW';
+const PRIMER_ITEM_NAME = 'Ancient Language Primer';
 const PRIMER_DC = 14;
 const PRIMER_CHECKS = {
 	int: { label: 'INT', type: 'ability', key: 'int' },
@@ -212,7 +213,7 @@ function getPrimerLetter(item) {
 }
 
 function isPrimerItem(item) {
-	return Boolean(item?.name?.toLowerCase().includes('primer'));
+	return Boolean(item?.getFlag(MODULE_ID, 'primer') || item?.name === PRIMER_ITEM_NAME || item?.name?.toLowerCase().includes('primer'));
 }
 
 async function processPrimer(item, options) {
@@ -226,6 +227,62 @@ async function processPrimer(item, options) {
 
 	const granted = await grantLetterToUser(game.user, letter);
 	if (!granted) return false;
+}
+
+function primerItemData() {
+	return {
+		name: PRIMER_ITEM_NAME,
+		type: 'consumable',
+		img: 'icons/magic/symbols/chevron-elipse-circle-blue.webp',
+		system: {
+			description: {
+				value: `<p>A primer contains a translation cypher for understanding the ancient language of the Muf. A character who has a primer can read it and attempt to learn a single letter.</p><p>On an INT / REL / HIS / CUL DC${PRIMER_DC} success, the character learns and is granted the ability to select which letter they would learn, which will always render it in cleartext from that point.</p><p>On a fail, the character learns a random letter instead.</p>`,
+				chat: '',
+			},
+			source: {},
+			identified: true,
+			unidentified: { description: '' },
+			quantity: 1,
+			weight: 0,
+			price: { value: 0, denomination: 'gp' },
+			rarity: 'artifact',
+			attunement: 0,
+			activation: { type: 'special', cost: null, condition: '' },
+			duration: { value: '', units: '' },
+			target: { value: null, width: null, units: '', type: 'self', prompt: true },
+			range: { value: null, long: null, units: '' },
+			uses: { value: 1, max: '1', per: 'charges', recovery: '', prompt: true, autoDestroy: true },
+			consume: { type: '', target: null, amount: null, scale: false },
+			ability: '',
+			actionType: '',
+			attackBonus: '',
+			chatFlavor: '',
+			critical: { threshold: null, damage: '' },
+			damage: { parts: [], versatile: '' },
+			formula: '',
+			save: { ability: '', dc: null, scaling: 'spell' },
+			type: { value: 'potion', subtype: '' },
+			properties: [],
+			equipped: false,
+		},
+		effects: [],
+		flags: {
+			[MODULE_ID]: { primer: true },
+		},
+	};
+}
+
+async function createPrimerItem() {
+	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can create primer items.');
+	const existing = game.items?.find((item) => item.name === PRIMER_ITEM_NAME && item.getFlag(MODULE_ID, 'primer'));
+	if (existing) {
+		ui.notifications.info(`${PRIMER_ITEM_NAME} already exists in the Items sidebar.`);
+		return existing;
+	}
+
+	const item = await Item.create(primerItemData());
+	ui.notifications.info(`${item.name} created in the Items sidebar.`);
+	return item;
 }
 
 function primerCardButton(user, letter) {
@@ -394,6 +451,11 @@ async function resetAllPrimers() {
 	ui.notifications.info('All Primer Encrypt letters have been unlearned.');
 }
 
+function collectFormData(html) {
+	const form = html[0]?.matches?.('form') ? html[0] : html.find('form')[0];
+	return Object.fromEntries(new FormData(form).entries());
+}
+
 class PrimerEncryptMenu extends FormApplication {
 	static get defaultOptions() {
 		return foundry.utils.mergeObject(super.defaultOptions, {
@@ -404,6 +466,7 @@ class PrimerEncryptMenu extends FormApplication {
 			height: 'auto',
 			closeOnSubmit: false,
 			submitOnChange: false,
+			submitOnClose: false,
 		});
 	}
 
@@ -507,7 +570,7 @@ class PrimerEncryptMenu extends FormApplication {
 					</div>
 				</section>
 				<footer class="sheet-footer flexrow">
-					${data.isGM ? '<button type="button" data-action="chat-card">Post Grant Card</button><button type="button" data-action="reset">Reset Learned Letters</button><button type="submit">Save</button>' : '<button type="button" data-action="close">Close</button>'}
+					${data.isGM ? '<button type="button" data-action="create-primer">Create Primer Item</button><button type="button" data-action="chat-card">Post Grant Card</button><button type="button" data-action="reset">Reset Learned Letters</button><button type="button" data-action="save">Save</button>' : '<button type="button" data-action="close">Close</button>'}
 				</footer>
 			</form>`;
 		return $(html);
@@ -529,6 +592,16 @@ class PrimerEncryptMenu extends FormApplication {
 			event.stopPropagation();
 			postMenuPrimerCard();
 		});
+		html.find('[data-action="create-primer"]').on('click', async (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			await createPrimerItem();
+		});
+		html.find('[data-action="save"]').on('click', async (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			await this.saveSettings(collectFormData(html));
+		});
 		html.find('[data-action="close"]').on('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -549,6 +622,10 @@ class PrimerEncryptMenu extends FormApplication {
 	}
 
 	async _updateObject(_event, formData) {
+		await this.saveSettings(formData);
+	}
+
+	async saveSettings(formData) {
 		if (!game.user.isGM) return;
 
 		const wasSharedKnowledge = setting('sharedKnowledge');

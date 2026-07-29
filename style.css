@@ -28,6 +28,15 @@
 	gap: 1rem;
 }
 
+.primerencrypt-settings .sheet-footer {
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.primerencrypt-settings .sheet-footer button {
+	min-width: 130px;
+}
+
 .primerencrypt-section {
 	border: 1px solid rgba(0, 0, 0, 0.2);
 	border-radius: 6px;
