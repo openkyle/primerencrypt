@@ -19,4 +19,4 @@ Open **Configure Settings > Module Settings > Primer Encrypt**.
 
 ## Compendiums
 
-The module supports an **Ancient Language Primer** item. When used, it posts the primer text and DC14 INT / REL / HIS / CUL check buttons to chat. On success, the missing-letter picker appears; on failure, a random missing letter is learned. Learned primer letters can be reset from the Primer Encrypt settings menu.
+The module supports an **Ancient Language Primer** item. When used, it posts the primer text and DC14 INT / REL / HIS / CUL check buttons to chat. On success, the missing-letter picker appears; on failure, the GM can grant a random missing letter. Learned primer letters can be reset from the Primer Encrypt settings menu.

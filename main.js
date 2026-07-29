@@ -55,13 +55,11 @@ async function setUserKnownLetters(user, letters) {
 	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
 	if (known) await user.setFlag(MODULE_ID, 'knownLetters', known);
 	else await user.unsetFlag(MODULE_ID, 'knownLetters');
-	refreshEncryptions();
 }
 
 async function setSharedKnownLetters(letters) {
 	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
 	await game.settings.set(MODULE_ID, 'sharedKnownLetters', known);
-	refreshEncryptions();
 }
 
 async function grantLetterToUser(user, letter) {
@@ -180,13 +178,6 @@ function makeEncryption(text) {
 	return $(`<span class="encryption" data-content="${b64}">${playerView}</span>`)[0];
 }
 
-function refreshEncryptions() {
-	for (const element of document.querySelectorAll('.encryption')) {
-		const text = decodeURIComponent(escape(atob(element.dataset.content)));
-		element.outerHTML = makeEncryption(text).outerHTML;
-	}
-}
-
 function registerEnricher() {
 	CONFIG.TextEditor.enrichers.push({
 		pattern: /@encrypt\[(?<text>[^\]]+)]/gi,
@@ -232,7 +223,7 @@ function primerCardButton(user, letter) {
 	return `<button type="button" data-primer-action="grant-letter" data-user-id="${userId}" data-letter="${letter}">${letter}</button>`;
 }
 
-function primerChoiceCardContent(users, title = 'Primer Letter', { allowPlayers = false } = {}) {
+function primerChoiceCardContent(users, title = 'Primer Letter') {
 	const grantTargets = setting('sharedKnowledge') ? [{ id: '', name: 'Players', shared: true }] : users;
 	const sections = grantTargets
 		.map((user) => {
@@ -247,12 +238,11 @@ function primerChoiceCardContent(users, title = 'Primer Letter', { allowPlayers 
 					<div class="primerencrypt-card-grid">
 						${buttons || '<em>All letters known.</em>'}
 					</div>
-					<button type="button" data-primer-action="grant-random" data-user-id="${user.id || ''}" ${allowPlayers ? 'data-allow-player="true"' : ''}>Grant Random Unknown Letter</button>
+					<button type="button" data-primer-action="grant-random" data-user-id="${user.id || ''}">Grant Random Unknown Letter</button>
 				</section>`;
 		})
 		.join('');
-	const content = `<div class="primerencrypt-chat-card" ${allowPlayers ? 'data-allow-player="true"' : ''}><h3>${title}</h3>${sections}</div>`;
-	return allowPlayers ? content.replaceAll('data-primer-action="grant-letter"', 'data-allow-player="true" data-primer-action="grant-letter"') : content;
+	return `<div class="primerencrypt-chat-card"><h3>${title}</h3>${sections}</div>`;
 }
 
 function primerCheckCardContent(user = game.user, itemName = 'Ancient Language Primer') {
@@ -270,6 +260,22 @@ function primerCheckCardContent(user = game.user, itemName = 'Ancient Language P
 		</div>`;
 }
 
+function primerRandomGrantCardContent(user = game.user, title = 'Primer Failure') {
+	const target = setting('sharedKnowledge') ? { id: '', name: 'Players', shared: true } : user;
+	const known = target.shared ? sharedKnownLetters() : userKnownLetters(target);
+	const missing = [...ALPHABET].filter((letter) => !known.has(letter));
+	const knownText = known.size ? [...known].sort().join(' ') : 'None';
+	return `
+		<div class="primerencrypt-chat-card">
+			<h3>${title}</h3>
+			<section class="primerencrypt-card-player">
+				<h4>${target.name}</h4>
+				<p>Known: <span class="decrypted">${knownText}</span></p>
+				${missing.length ? `<button type="button" data-primer-action="grant-random" data-user-id="${target.id || ''}">Grant Random Missing Letter</button>` : '<em>All letters known.</em>'}
+			</section>
+		</div>`;
+}
+
 async function postPrimerChoiceCard(user = game.user, itemName = 'Ancient Language Primer') {
 	await ChatMessage.create({
 		content: primerCheckCardContent(user, itemName),
@@ -284,6 +290,9 @@ async function postMenuPrimerCard() {
 }
 
 async function handlePrimerCardClick(event) {
+	event.preventDefault();
+	event.stopPropagation();
+
 	const button = event.currentTarget;
 	const user = setting('sharedKnowledge') ? game.user : game.users.get(button.dataset.userId);
 	if (!user) return;
@@ -293,8 +302,7 @@ async function handlePrimerCardClick(event) {
 		return;
 	}
 
-	const playerAllowed = button.dataset.allowPlayer === 'true' && (setting('sharedKnowledge') || user.id === game.user.id);
-	if (!game.user.isGM && !playerAllowed) return ui.notifications.error('Only the gamemaster can grant primer letters.');
+	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can grant primer letters.');
 
 	if (button.dataset.primerAction === 'grant-random') {
 		const known = userKnownLetters(user);
@@ -335,7 +343,7 @@ async function rollPrimerCheck(user, check) {
 	const missing = [...ALPHABET].filter((letter) => !userKnownLetters(targetUser).has(letter));
 
 	await roll.toMessage({
-		speaker: ChatMessage.getSpeaker({ actor }),
+		speaker: actor ? ChatMessage.getSpeaker({ actor }) : { alias: user.name },
 		flavor: `Ancient Language Primer: ${checkData.label} DC${PRIMER_DC} ${success ? 'success' : 'failure'}`,
 	});
 
@@ -346,12 +354,20 @@ async function rollPrimerCheck(user, check) {
 
 	if (success) {
 		await ChatMessage.create({
-			content: primerChoiceCardContent([user], `${setting('sharedKnowledge') ? 'Players' : user.name}: choose a letter to understand`, { allowPlayers: true }),
+			content: primerChoiceCardContent([user], `${setting('sharedKnowledge') ? 'Players' : user.name}: choose a letter to understand`),
 		});
 		return;
 	}
 
-	await grantLetterToUser(targetUser, randomFrom(missing));
+	if (game.user.isGM) {
+		await grantLetterToUser(targetUser, randomFrom(missing));
+		return;
+	}
+
+	await ChatMessage.create({
+		content: primerRandomGrantCardContent(user, `${setting('sharedKnowledge') ? 'Players' : user.name}: failed the primer check`),
+		whisper: ChatMessage.getWhisperRecipients('GM').map((gm) => gm.id),
+	});
 }
 
 async function resetAllPrimers() {
@@ -545,7 +561,6 @@ class PrimerEncryptMenu extends FormApplication {
 		}
 
 		ui.notifications.info('Primer Encrypt settings saved.');
-		refreshEncryptions();
 		this.render();
 	}
 }
@@ -571,7 +586,6 @@ function registerSettings() {
 			simple: 'Simple',
 			advanced: 'Advanced',
 		},
-		onChange: refreshEncryptions,
 	});
 
 	game.settings.register(MODULE_ID, 'cipher', {
@@ -580,7 +594,6 @@ function registerSettings() {
 		config: false,
 		type: String,
 		default: DEFAULT_CIPHER,
-		onChange: refreshEncryptions,
 	});
 
 	game.settings.register(MODULE_ID, 'sharedKnowledge', {
@@ -589,7 +602,6 @@ function registerSettings() {
 		config: false,
 		type: Boolean,
 		default: true,
-		onChange: refreshEncryptions,
 	});
 
 	game.settings.register(MODULE_ID, 'sharedKnownLetters', {
@@ -598,7 +610,6 @@ function registerSettings() {
 		config: false,
 		type: String,
 		default: '',
-		onChange: refreshEncryptions,
 	});
 
 	game.settings.registerMenu(MODULE_ID, 'menu', {
@@ -619,7 +630,4 @@ Hooks.once('ready', () => {
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
 Hooks.on('renderChatMessage', (_message, html) => {
 	html.find('[data-primer-action]').on('click', handlePrimerCardClick);
-});
-Hooks.on('updateUser', (_user, changes) => {
-	if (foundry.utils.getProperty(changes, `flags.${MODULE_ID}`)) refreshEncryptions();
 });
