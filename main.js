@@ -231,7 +231,7 @@ function primerCardButton(user, letter) {
 	return `<button type="button" data-primer-action="grant-letter" data-user-id="${userId}" data-letter="${letter}">${letter}</button>`;
 }
 
-function primerChoiceCardContent(users, title = 'Primer Letter') {
+function primerChoiceCardContent(users, title = 'Primer Deciphered') {
 	const grantTargets = setting('sharedKnowledge') ? [{ id: '', name: 'Players', shared: true }] : users;
 	const sections = grantTargets
 		.map((user) => {
@@ -242,11 +242,12 @@ function primerChoiceCardContent(users, title = 'Primer Letter') {
 			return `
 				<section class="primerencrypt-card-player">
 					<h4>${user.name}</h4>
+					<p>Congratulations, you have deciphered a primer! Please select which letter you would like to learn! This letter will be revealed in all encrypted/ancient texts.</p>
 					<p>Known: <span class="decrypted">${knownText}</span></p>
 					<div class="primerencrypt-card-grid">
 						${buttons || '<em>All letters known.</em>'}
 					</div>
-					<button type="button" data-primer-action="grant-random" data-user-id="${user.id || ''}">Grant Random Unknown Letter</button>
+					<button type="button" data-primer-action="grant-random" data-user-id="${user.id || ''}">Random Choice</button>
 				</section>`;
 		})
 		.join('');
@@ -279,7 +280,7 @@ function primerRandomGrantCardContent(user = game.user, title = 'Primer Failure'
 			<section class="primerencrypt-card-player">
 				<h4>${target.name}</h4>
 				<p>Known: <span class="decrypted">${knownText}</span></p>
-				${missing.length ? `<button type="button" data-primer-action="grant-random" data-user-id="${target.id || ''}">Grant Random Missing Letter</button>` : '<em>All letters known.</em>'}
+				${missing.length ? `<button type="button" data-primer-action="grant-random" data-user-id="${target.id || ''}">Random Choice</button>` : '<em>All letters known.</em>'}
 			</section>
 		</div>`;
 }
@@ -293,7 +294,7 @@ async function postPrimerChoiceCard(user = game.user, itemName = 'Ancient Langua
 async function postMenuPrimerCard() {
 	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can grant primer letters.');
 	await ChatMessage.create({
-		content: primerChoiceCardContent(game.users.players, 'Primer Encrypt: grant a letter'),
+		content: primerChoiceCardContent(game.users.players),
 	});
 }
 
@@ -368,7 +369,7 @@ async function rollPrimerCheck(user, check) {
 
 	if (success) {
 		await ChatMessage.create({
-			content: primerChoiceCardContent([user], `${setting('sharedKnowledge') ? 'Players' : user.name}: choose a letter to understand`),
+			content: primerChoiceCardContent([user]),
 		});
 		return;
 	}

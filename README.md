@@ -15,7 +15,7 @@ Open **Configure Settings > Module Settings > Primer Encrypt**.
 - **Custom Cipher** lets the GM set a full substitution alphabet. The cipher must include all 26 letters exactly once; reused letters are highlighted in red and cannot be saved.
 - **Primer knowledge is the same for all players** is enabled by default and shows one shared Players column. Turn it off to manage letters per player.
 - **Primer Knowledge** lets the GM check or uncheck which primer letters players have learned.
-- **Post Grant Card** creates a chat card with only missing letter buttons so the GM can grant primer knowledge directly from chat.
+- **Post Grant Card** creates a primer-deciphered chat card with only missing letter buttons so the GM can grant primer knowledge directly from chat.
 - Letter grants are stored on player user flags and do not rewrite live encrypted text or mutate compendium packs.
 
 ## Compendiums
