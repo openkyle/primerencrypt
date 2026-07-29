@@ -42,8 +42,11 @@ function rawUserKnownLetters(user = game.user) {
 }
 
 function sharedKnownLetters() {
-	const known = setting('sharedKnownLetters') || '';
-	return new Set([...known.toUpperCase()].filter((letter) => ALPHABET.includes(letter)));
+	const letters = new Set();
+	for (const user of game.users.players) {
+		for (const letter of rawUserKnownLetters(user)) letters.add(letter);
+	}
+	return letters;
 }
 
 async function setUserKnownLetters(user, letters) {
@@ -59,7 +62,12 @@ async function setUserKnownLetters(user, letters) {
 
 async function setSharedKnownLetters(letters) {
 	const known = [...new Set([...letters.toUpperCase()].filter((letter) => ALPHABET.includes(letter)))].sort().join('');
-	await game.settings.set(MODULE_ID, 'sharedKnownLetters', known);
+	await Promise.all(
+		game.users.players.map((player) => {
+			if (known) return player.setFlag(MODULE_ID, 'knownLetters', known);
+			return player.unsetFlag(MODULE_ID, 'knownLetters');
+		}),
+	);
 }
 
 async function grantLetterToUser(user, letter) {
@@ -74,7 +82,7 @@ async function grantLetterToUser(user, letter) {
 
 	known.add(upper);
 	await setUserKnownLetters(user, [...known].join(''));
-	ChatMessage.create({ content: `${setting('sharedKnowledge') ? 'Players have' : `${user.name} has`} learned to decrypt the letter <b>${upper}</b>.` });
+	ui.notifications.info(`${setting('sharedKnowledge') ? 'Players have' : `${user.name} has`} learned to decrypt ${upper}.`);
 	return true;
 }
 
@@ -289,11 +297,17 @@ async function postMenuPrimerCard() {
 	});
 }
 
-async function handlePrimerCardClick(event) {
+function handlePrimerCardClick(event) {
 	event.preventDefault();
 	event.stopPropagation();
 
-	const button = event.currentTarget;
+	handlePrimerCardAction(event.currentTarget).catch((error) => {
+		console.error('Primer Encrypt grant action failed', error);
+		ui.notifications.error('Primer Encrypt could not grant that letter. See the console for details.');
+	});
+}
+
+async function handlePrimerCardAction(button) {
 	const user = setting('sharedKnowledge') ? game.user : game.users.get(button.dataset.userId);
 	if (!user) return;
 
@@ -373,7 +387,6 @@ async function rollPrimerCheck(user, check) {
 async function resetAllPrimers() {
 	if (!game.user.isGM) return ui.notifications.error('Only the gamemaster can reset primer knowledge.');
 
-	await setSharedKnownLetters('');
 	await Promise.all(
 		game.users.players.map(async (player) => {
 			await player.unsetFlag(MODULE_ID, 'knownLetters');
@@ -509,7 +522,6 @@ class PrimerEncryptMenu extends FormApplication {
 		});
 		html.find('[data-action="reset"]').on('click', async () => {
 			await resetAllPrimers();
-			this.render();
 		});
 		html.find('[data-action="chat-card"]').on('click', () => postMenuPrimerCard());
 		html.find('[data-action="close"]').on('click', () => this.close());
@@ -542,9 +554,9 @@ class PrimerEncryptMenu extends FormApplication {
 			return;
 		}
 
-		await game.settings.set(MODULE_ID, 'method', formData.method);
-		await game.settings.set(MODULE_ID, 'cipher', normalized);
-		await game.settings.set(MODULE_ID, 'sharedKnowledge', Boolean(formData.sharedKnowledge));
+		if (setting('method') !== formData.method) await game.settings.set(MODULE_ID, 'method', formData.method);
+		if (normalizeCipher(setting('cipher')) !== normalized) await game.settings.set(MODULE_ID, 'cipher', normalized);
+		if (setting('sharedKnowledge') !== Boolean(formData.sharedKnowledge)) await game.settings.set(MODULE_ID, 'sharedKnowledge', Boolean(formData.sharedKnowledge));
 
 		if (formData.sharedKnowledge) {
 			const hasSharedInputs = [...ALPHABET].some((letter) => Object.prototype.hasOwnProperty.call(formData, `known-shared-${letter}`));
@@ -561,7 +573,6 @@ class PrimerEncryptMenu extends FormApplication {
 		}
 
 		ui.notifications.info('Primer Encrypt settings saved.');
-		this.render();
 	}
 }
 
@@ -604,14 +615,6 @@ function registerSettings() {
 		default: true,
 	});
 
-	game.settings.register(MODULE_ID, 'sharedKnownLetters', {
-		name: 'Shared Known Letters',
-		scope: 'world',
-		config: false,
-		type: String,
-		default: '',
-	});
-
 	game.settings.registerMenu(MODULE_ID, 'menu', {
 		name: 'Primer Encrypt',
 		label: 'Open Primer Encrypt',
@@ -629,5 +632,6 @@ Hooks.once('ready', () => {
 });
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
 Hooks.on('renderChatMessage', (_message, html) => {
-	html.find('[data-primer-action]').on('click', handlePrimerCardClick);
+	const root = html?.find ? html : $(html);
+	root.find('[data-primer-action]').off(`click.${MODULE_ID}`).on(`click.${MODULE_ID}`, handlePrimerCardClick);
 });

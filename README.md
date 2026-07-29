@@ -16,6 +16,7 @@ Open **Configure Settings > Module Settings > Primer Encrypt**.
 - **Primer knowledge is the same for all players** is enabled by default and shows one shared Players column. Turn it off to manage letters per player.
 - **Primer Knowledge** lets the GM check or uncheck which primer letters players have learned.
 - **Post Grant Card** creates a chat card with only missing letter buttons so the GM can grant primer knowledge directly from chat.
+- Letter grants are stored on player user flags and do not rewrite live encrypted text or mutate compendium packs.
 
 ## Compendiums
 
