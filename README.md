@@ -16,9 +16,8 @@ Open **Configure Settings > Module Settings > Primer Encrypt**.
 - **Primer knowledge is the same for all players** is enabled by default and shows one shared Players column. Turn it off to manage letters per player.
 - **Primer Knowledge** lets the GM check or uncheck which primer letters players have learned.
 - **Post Grant Card** creates a primer-deciphered chat card with only missing letter buttons so the GM can grant primer knowledge directly from chat.
-- **Create Primer Item** creates a single **Ancient Language Primer** item in the world Items sidebar.
 - Letter grants are stored on player user flags and do not rewrite live encrypted text or mutate compendium packs.
 
-## Primer Item
+## Compendium
 
-Primer Encrypt no longer ships an A-Z primer compendium. Use **Create Primer Item** to make one **Ancient Language Primer** item. When that item is consumed, it posts the primer text and DC14 INT / REL / HIS / CUL check buttons to chat. On success, the missing-letter picker appears; on failure, the GM can grant a random missing letter. Learned primer letters can be reset from the Primer Encrypt settings menu.
+Primer Encrypt ships one **Ancient Language Primer** item in the **Primers** compendium. When that item is consumed, it posts the primer text and DC14 INT / REL / HIS / CUL check buttons to chat. On success, the missing-letter picker appears; on failure, the GM can grant a random missing letter. Learned primer letters can be reset from the Primer Encrypt settings menu.
