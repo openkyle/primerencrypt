@@ -153,3 +153,25 @@
 	gap: 0.25rem;
 	margin: 0.4rem 0;
 }
+
+.primerencrypt-editor-control {
+	align-items: center;
+	display: inline-flex;
+	gap: 0.25rem;
+	justify-content: center;
+}
+
+.primerencrypt-editor-control span {
+	font-size: 0.75rem;
+}
+
+.editor-menu .primerencrypt-editor-control span,
+.editor-toolbar .primerencrypt-editor-control span {
+	display: none;
+}
+
+.primerencrypt-editor-option {
+	display: block;
+	text-align: left;
+	width: 100%;
+}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.14
+
+- Added an item editor **Encrypt** control for wrapping highlighted text in `@encrypt[...]`.
+- Added a dropdown/menu **Encrypt** option where Foundry exposes editor dropdown menus.
+- Expanded shortcode documentation with the explicit `@encrypt[ ]` format.
+
 ## 1.0.13
 
 - Expanded user-facing documentation for installation, quick start, encryption syntax, primer knowledge, and testing.

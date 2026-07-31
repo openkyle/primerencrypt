@@ -7,6 +7,7 @@ The module is built for table use: GMs write encrypted text once, players see on
 ## Features
 
 - Enrich journals, item descriptions, and chat with `@encrypt[secret text]`.
+- Use the item editor **Encrypt** control to wrap highlighted text in `@encrypt[...]`.
 - Use **Simple** encryption for a stable substitution cipher.
 - Use **Advanced** encryption to redraw unknown letters each time text renders for a player.
 - Mark individual words with `#` to force the fixed cipher path while hiding the `#` marker.
@@ -37,6 +38,12 @@ After installing, enable **Primer Encrypt** in your world module list.
 
 ## Writing Encrypted Text
 
+Shortcode:
+
+```text
+@encrypt[ ]
+```
+
 Use this syntax anywhere Foundry supports text enrichers:
 
 ```text
@@ -52,6 +59,8 @@ To force one word through the fixed cipher, prefix it with `#`:
 ```
 
 The `#` marker is hidden in rendered text. Any learned letters inside that word still show plainly in green.
+
+When editing an item description, highlight text and click **Encrypt** in the editor toolbar or dropdown menu. The highlighted text will be wrapped as `@encrypt[highlighted text]`. Hovering the control explains that encrypted text requires primers from the compendium to un-encrypt.
 
 ## Primer Knowledge
 
@@ -89,6 +98,7 @@ This release is ready for userbase testing on Foundry VTT v11 with DnD5e. Please
 - Shared primer knowledge and per-player primer knowledge.
 - Saving checked letters from the settings menu.
 - Rendering `@encrypt[...]` in journals, item descriptions, and chat.
+- Wrapping highlighted item text with the editor **Encrypt** control.
 - The `#word` fixed-cipher behavior.
 
 ## Compatibility

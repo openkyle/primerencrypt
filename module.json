@@ -6,7 +6,7 @@
 			"name": "OpenKyle"
 		}
 	],
-	"description": "Primer-based ancient text encryption for DnD5e journals, items, and chat, with Simple and Advanced cipher modes, learned-letter tracking, and a one-use Ancient Language Primer compendium item.",
+	"description": "Primer-based ancient text encryption for DnD5e journals, items, and chat, with Simple and Advanced cipher modes, learned-letter tracking, editor controls, and a one-use Ancient Language Primer compendium item.",
 	"esmodules": ["main.js"],
 	"styles": ["style.css"],
 	"compatibility": {
@@ -37,7 +37,7 @@
 			"system": "dnd5e"
 		}
 	],
-	"version": "1.0.13",
+	"version": "1.0.14",
 	"url": "https://github.com/openkyle/primerencrypt",
 	"readme": "https://github.com/openkyle/primerencrypt/blob/main/README.md",
 	"changelog": "https://github.com/openkyle/primerencrypt/blob/main/CHANGELOG.md",

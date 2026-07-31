@@ -3,6 +3,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const DEFAULT_CIPHER = 'YPLTAVKREZGMSHUBXNCDIJFQOW';
 const PRIMER_ITEM_NAME = 'Ancient Language Primer';
 const PRIMER_DC = 14;
+const ENCRYPT_TOOLTIP = 'Encrypted text requires the use of Primers from the compendium to un-encrypt.';
 const PRIMER_CHECKS = {
 	int: { label: 'INT', type: 'ability', key: 'int' },
 	rel: { label: 'REL', type: 'skill', key: 'rel' },
@@ -204,6 +205,99 @@ function activateListeners() {
 		const states = ['players', 'encrypted', 'plain'];
 		parent.dataset.show = states[(states.indexOf(parent.dataset.show) + 1) % states.length];
 	});
+}
+
+function activeTextTarget(root) {
+	const selection = window.getSelection();
+	if (selection?.rangeCount && selection.toString() && root.contains(selection.anchorNode)) return selection;
+	const active = document.activeElement;
+	if (active && root.contains(active) && (active.isContentEditable || ['TEXTAREA', 'INPUT'].includes(active.tagName))) return active;
+	return root.querySelector('[contenteditable="true"], textarea');
+}
+
+function insertTextIntoInput(input, text) {
+	const start = input.selectionStart ?? input.value.length;
+	const end = input.selectionEnd ?? start;
+	input.value = `${input.value.slice(0, start)}${text}${input.value.slice(end)}`;
+	input.selectionStart = input.selectionEnd = start + text.length - 1;
+	input.dispatchEvent(new Event('input', { bubbles: true }));
+	input.focus();
+}
+
+function wrapSelectionWithEncrypt(root) {
+	const target = activeTextTarget(root);
+	if (!target) return;
+
+	if (target instanceof Selection) {
+		const selected = target.toString();
+		document.execCommand('insertText', false, `@encrypt[${selected}]`);
+		return;
+	}
+
+	if (target.isContentEditable) {
+		target.focus();
+		document.execCommand('insertText', false, '@encrypt[]');
+		return;
+	}
+
+	insertTextIntoInput(target, '@encrypt[]');
+}
+
+function encryptEditorButton() {
+	const button = document.createElement('button');
+	button.type = 'button';
+	button.className = 'primerencrypt-editor-control';
+	button.title = ENCRYPT_TOOLTIP;
+	button.dataset.primerencryptEditor = 'encrypt';
+	button.innerHTML = '<i class="fas fa-key"></i><span>Encrypt</span>';
+	return button;
+}
+
+function encryptDropdownOption() {
+	const option = document.createElement('button');
+	option.type = 'button';
+	option.className = 'primerencrypt-editor-option';
+	option.title = ENCRYPT_TOOLTIP;
+	option.dataset.primerencryptEditor = 'encrypt';
+	option.textContent = 'Encrypt';
+	return option;
+}
+
+function activateEncryptEditorControl(event) {
+	const control = event.currentTarget;
+	event.preventDefault();
+	event.stopPropagation();
+	wrapSelectionWithEncrypt(control.closest('.app') || document);
+}
+
+function addEncryptDropdownOptions(root) {
+	const menus = root.querySelectorAll('.dropdown-content, .pm-dropdown-content, .menu-content, .editor-dropdown, [role="menu"]');
+	for (const menu of menus) {
+		if (menu.querySelector('[data-primerencrypt-editor="encrypt"]')) continue;
+		const option = encryptDropdownOption();
+		option.addEventListener('mousedown', activateEncryptEditorControl);
+		menu.appendChild(option);
+	}
+}
+
+function addEncryptEditorControls(_app, html) {
+	const root = html?.[0] || html;
+	if (!root?.querySelectorAll) return;
+
+	const toolbars = root.querySelectorAll('.editor-menu, menu.editor-menu, .editor-toolbar, .prosemirror menu, .prosemirror .editor-menu');
+	for (const toolbar of toolbars) {
+		if (toolbar.querySelector('[data-primerencrypt-editor="encrypt"]')) continue;
+		const button = encryptEditorButton();
+		button.addEventListener('mousedown', activateEncryptEditorControl);
+		toolbar.appendChild(button);
+	}
+
+	addEncryptDropdownOptions(root);
+	if (!root.dataset) return;
+	if (root.dataset.primerencryptEditorObserver) return;
+	const observer = new MutationObserver(() => addEncryptDropdownOptions(root));
+	observer.observe(root, { childList: true, subtree: true });
+	root.dataset.primerencryptEditorObserver = 'true';
 }
 
 function getPrimerLetter(item) {
@@ -661,6 +755,11 @@ Hooks.once('ready', () => {
 	activateListeners();
 });
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
+Hooks.on('renderItemSheet', addEncryptEditorControls);
+Hooks.on('renderApplication', (app, html) => {
+	const documentName = app.document?.documentName || app.object?.documentName;
+	if (documentName === 'Item') addEncryptEditorControls(app, html);
+});
 Hooks.on('renderChatMessage', (_message, html) => {
 	const root = html?.find ? html : $(html);
 	root.find('[data-primer-action]').off(`click.${MODULE_ID}`).on(`click.${MODULE_ID}`, handlePrimerCardClick);
