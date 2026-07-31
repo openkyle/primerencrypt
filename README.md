@@ -1,23 +1,107 @@
 # Primer Encrypt
 
-Primer Encrypt is a Foundry VTT module for DnD5e games that lets a GM hide text behind primer-based letter knowledge.
+Primer Encrypt is a Foundry VTT module for DnD5e games that lets a GM hide writing behind an ancient-language cipher. Players gradually learn the alphabet through primer items, and known letters render in cleartext while the rest remains encrypted.
 
-Use `@encrypt[secret text]` in supported rich text. Players see encrypted text until their character uses primer items to learn letters. GMs can click encrypted text to cycle between the player view, the hard cipher view, and the plain text.
+The module is built for table use: GMs write encrypted text once, players see only what their primer knowledge allows, and the GM can manage learned letters from a compact settings menu or from chat cards.
 
-Prefix a word with `#` inside encrypted text to keep the original fixed-cipher behavior for that word. The `#` marker is hidden in the rendered text, and learned primer letters still show plainly in green.
+## Features
 
-## Settings
+- Enrich journals, item descriptions, and chat with `@encrypt[secret text]`.
+- Use **Simple** encryption for a stable substitution cipher.
+- Use **Advanced** encryption to redraw unknown letters each time text renders for a player.
+- Mark individual words with `#` to force the fixed cipher path while hiding the `#` marker.
+- Show learned letters in green so players can see their progress.
+- Use a custom A-Z cipher, with duplicate letters highlighted before saving.
+- Track primer knowledge as one shared player alphabet or separately per player.
+- Ship one **Ancient Language Primer** consumable in the **Primers** compendium.
+- Consume the primer to post the DC14 INT / REL / HIS / CUL learning card to chat.
+
+## Installation
+
+Use this manifest URL in Foundry:
+
+```text
+https://github.com/openkyle/primerencrypt/releases/latest/download/module.json
+```
+
+After installing, enable **Primer Encrypt** in your world module list.
+
+## Quick Start
+
+1. Open **Configure Settings > Module Settings > Primer Encrypt**.
+2. Choose **Simple** or **Advanced**.
+3. Leave the default cipher or enter a full custom cipher using every letter A-Z exactly once.
+4. Drag **Ancient Language Primer** from the **Primers** compendium to a character.
+5. Add encrypted text with `@encrypt[the old door speaks in silver fire]`.
+6. Have a player consume the primer item to roll the DC14 primer check.
+
+## Writing Encrypted Text
+
+Use this syntax anywhere Foundry supports text enrichers:
+
+```text
+@encrypt[The Muf vault opens at moonrise.]
+```
+
+Players see encrypted text based on the current mode and their learned letters. GMs can click encrypted text to cycle between the player view, the hard cipher view, and the plain text.
+
+To force one word through the fixed cipher, prefix it with `#`:
+
+```text
+@encrypt[The #Muf vault opens at moonrise.]
+```
+
+The `#` marker is hidden in rendered text. Any learned letters inside that word still show plainly in green.
+
+## Primer Knowledge
 
 Open **Configure Settings > Module Settings > Primer Encrypt**.
 
-- **Simple** uses the saved A-Z cipher every time.
-- **Advanced** redraws unknown letters each time encrypted text renders, while learned primer letters stay readable in green.
-- **Custom Cipher** lets the GM set a full substitution alphabet. The cipher must include all 26 letters exactly once; reused letters are highlighted in red and cannot be saved.
-- **Primer knowledge is the same for all players** is enabled by default and shows one shared Players column. Turn it off to manage letters per player.
-- **Primer Knowledge** lets the GM check or uncheck which primer letters players have learned.
-- **Post Grant Card** creates a primer-deciphered chat card with only missing letter buttons so the GM can grant primer knowledge directly from chat.
-- Letter grants are stored on player user flags and do not rewrite live encrypted text or mutate compendium packs.
+- **Primer knowledge is the same for all players** is enabled by default and shows one shared **Players** column.
+- Turn that setting off to manage known letters per player.
+- Check a letter to mark it learned.
+- Click **Save** to store the changes and close the menu.
+- Click **Reset Learned Letters** to clear all learned letters.
+- Click **Post Grant Card** to post a chat card containing only letters the players still do not know.
 
-## Compendium
+Letter grants are stored on player user flags. The module does not rewrite live encrypted text or mutate compendium packs during play.
 
-Primer Encrypt ships one **Ancient Language Primer** item in the **Primers** compendium. When that item is consumed, it posts the primer text and DC14 INT / REL / HIS / CUL check buttons to chat. On success, the missing-letter picker appears; on failure, the GM can grant a random missing letter. Learned primer letters can be reset from the Primer Encrypt settings menu.
+## Primer Item
+
+The **Primers** compendium contains one item:
+
+**Ancient Language Primer**
+
+- Type: Consumable
+- Uses: 1 charge
+- Consume behavior: deletes on consume
+- On use: posts the primer chat card
+
+When the primer is consumed, the player chooses an INT / REL / HIS / CUL DC14 check. On success, the player chooses a missing letter to learn. On failure, a random missing letter can be granted instead.
+
+## Testing Notes
+
+This release is ready for userbase testing on Foundry VTT v11 with DnD5e. Please test:
+
+- Dragging **Ancient Language Primer** from the compendium to a character.
+- Consuming the item and confirming it deletes after use.
+- Success and failure paths for the DC14 primer card.
+- Shared primer knowledge and per-player primer knowledge.
+- Saving checked letters from the settings menu.
+- Rendering `@encrypt[...]` in journals, item descriptions, and chat.
+- The `#word` fixed-cipher behavior.
+
+## Compatibility
+
+- Foundry VTT: v11, verified on 11.315
+- System: DnD5e, verified on 3.0.3
+
+## Support
+
+Open issues on GitHub with:
+
+- Foundry version
+- DnD5e system version
+- Primer Encrypt version
+- A screenshot or console error if one appears
+- Steps to reproduce the issue
