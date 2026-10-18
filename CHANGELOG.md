@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Post the primer check buttons after the native item card, once item use completes, instead of before consumption. Cancelled uses no longer post a check card.
+
 ## 1.0.14
 
 - Added an item editor **Encrypt** control for wrapping highlighted text in `@encrypt[...]`.

@@ -314,13 +314,18 @@ async function processPrimer(item, options) {
 	const letter = getPrimerLetter(item);
 	if (!options.consumeUsage || !isPrimerItem(item)) return;
 
-	if (!letter) {
-		await postPrimerChoiceCard(game.user, item.name);
-		return;
-	}
+	// Letterless primers post their check only after the native item card.
+	if (!letter) return;
 
 	const granted = await grantLetterToUser(game.user, letter);
 	if (!granted) return false;
+}
+
+async function processUsedPrimer(item, config) {
+	if (!config.consumeUsage || !isPrimerItem(item) || getPrimerLetter(item)) return;
+
+	// dnd5e.useItem runs after displayCard has finished creating the item card.
+	await postPrimerChoiceCard(game.user, item.name);
 }
 
 function primerCardButton(user, letter) {
@@ -755,6 +760,7 @@ Hooks.once('ready', () => {
 	activateListeners();
 });
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
+Hooks.on('dnd5e.useItem', processUsedPrimer);
 Hooks.on('renderItemSheet', addEncryptEditorControls);
 Hooks.on('renderApplication', (app, html) => {
 	const documentName = app.document?.documentName || app.object?.documentName;
