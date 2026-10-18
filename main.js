@@ -86,7 +86,13 @@ async function grantLetterToUser(user, letter) {
 
 	known.add(upper);
 	await setUserKnownLetters(user, [...known].join(''));
-	ui.notifications.info(`${setting('sharedKnowledge') ? 'Players have' : `${user.name} has`} learned to decrypt ${upper}.`);
+	const learner = setting('sharedKnowledge') ? 'Players have' : `${user.name} has`;
+	const escapedLearner = learner.replace(/[&<>"']/g, character => ({
+		'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+	})[character]);
+	await ChatMessage.create({
+		content: `<div class="primerencrypt-chat-card"><h3>Letter Learned</h3><p>${escapedLearner} learned to decrypt the letter <strong class="decrypted">${upper}</strong>.</p></div>`,
+	});
 	return true;
 }
 

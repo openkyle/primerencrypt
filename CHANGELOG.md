@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Announce newly learned letters in a persistent chat card instead of a screen notification, including random letters awarded after failed checks.
+
 - Post the primer check buttons after the native item card, once item use completes, instead of before consumption. Cancelled uses no longer post a check card.
 
 ## 1.0.14
