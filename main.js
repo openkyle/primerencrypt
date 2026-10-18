@@ -417,6 +417,11 @@ function handlePrimerCardClick(event) {
 }
 
 async function handlePrimerCardAction(button) {
+	if (button.dataset.primerAction === 'gm-settings') {
+		if (!game.user.isGM) return;
+		return new PrimerEncryptMenu().render(true);
+	}
+
 	const user = setting('sharedKnowledge') ? game.user : game.users.get(button.dataset.userId);
 	if (!user) return;
 
@@ -774,5 +779,10 @@ Hooks.on('renderApplication', (app, html) => {
 });
 Hooks.on('renderChatMessage', (_message, html) => {
 	const root = html?.find ? html : $(html);
+	// Add this per viewer, so players never receive a GM-only control.
+	root.find('[data-primer-action="gm-settings"]').remove();
+	if (game.user.isGM) {
+		root.find('.primerencrypt-check-grid').after('<button type="button" class="primerencrypt-gm-settings" data-primer-action="gm-settings">GM Settings</button>');
+	}
 	root.find('[data-primer-action]').off(`click.${MODULE_ID}`).on(`click.${MODULE_ID}`, handlePrimerCardClick);
 });
