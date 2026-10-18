@@ -86,7 +86,13 @@ async function grantLetterToUser(user, letter) {
 
 	known.add(upper);
 	await setUserKnownLetters(user, [...known].join(''));
-	ui.notifications.info(`${setting('sharedKnowledge') ? 'Players have' : `${user.name} has`} learned to decrypt ${upper}.`);
+	const learner = setting('sharedKnowledge') ? 'Players have' : `${user.name} has`;
+	const escapedLearner = learner.replace(/[&<>"']/g, character => ({
+		'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+	})[character]);
+	await ChatMessage.create({
+		content: `<div class="primerencrypt-chat-card"><h3>Letter Learned</h3><p>${escapedLearner} learned to decrypt the letter <strong class="decrypted">${upper}</strong>.</p></div>`,
+	});
 	return true;
 }
 
@@ -314,13 +320,18 @@ async function processPrimer(item, options) {
 	const letter = getPrimerLetter(item);
 	if (!options.consumeUsage || !isPrimerItem(item)) return;
 
-	if (!letter) {
-		await postPrimerChoiceCard(game.user, item.name);
-		return;
-	}
+	// Letterless primers post their check only after the native item card.
+	if (!letter) return;
 
 	const granted = await grantLetterToUser(game.user, letter);
 	if (!granted) return false;
+}
+
+async function processUsedPrimer(item, config) {
+	if (!config.consumeUsage || !isPrimerItem(item) || getPrimerLetter(item)) return;
+
+	// dnd5e.useItem runs after displayCard has finished creating the item card.
+	await postPrimerChoiceCard(game.user, item.name);
 }
 
 function primerCardButton(user, letter) {
@@ -406,6 +417,11 @@ function handlePrimerCardClick(event) {
 }
 
 async function handlePrimerCardAction(button) {
+	if (button.dataset.primerAction === 'gm-settings') {
+		if (!game.user.isGM) return;
+		return new PrimerEncryptMenu().render(true);
+	}
+
 	const user = setting('sharedKnowledge') ? game.user : game.users.get(button.dataset.userId);
 	if (!user) return;
 
@@ -540,6 +556,7 @@ class PrimerEncryptMenu extends FormApplication {
 	async _renderInner(data) {
 		const html = `
 			<form class="primerencrypt-settings">
+				${primerShortcodeGuide()}
 				<section class="primerencrypt-section">
 					<label>Encryption Method</label>
 					<select name="method" ${data.isGM ? '' : 'disabled'}>
@@ -710,6 +727,16 @@ function duplicateCipherLetters(cipher) {
 	return duplicates;
 }
 
+function primerShortcodeGuide() {
+	return `<section class="primerencrypt-section primerencrypt-shortcode-guide">
+		<h3>Writing Encrypted Text</h3>
+		<p>Wrap text in <code>@encrypt[ ]</code> in journal entries, item descriptions, or chat messages.</p>
+		<p>Example: <code>@encrypt[The old door opens at midnight.]</code></p>
+		<p>Wherever the encrypted text is displayed, the GM can click it to cycle through the players' view, the full cipher, and the plain translation. This changes only the GM's view.</p>
+		<p>Players cannot click to reveal the translation. They see learned letters in cleartext and unknown letters encrypted.</p>
+	</section>`;
+}
+
 function registerSettings() {
 	game.settings.register(MODULE_ID, 'method', {
 		name: 'Encryption Method',
@@ -755,6 +782,12 @@ Hooks.once('ready', () => {
 	activateListeners();
 });
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
+Hooks.on('dnd5e.useItem', processUsedPrimer);
+Hooks.on('renderSettingsConfig', (_app, html) => {
+	const root = html?.find ? html : $(html);
+	root.find('.primerencrypt-shortcode-guide').remove();
+	root.find('button[data-key="primerencrypt.menu"]').closest('.form-group').after(primerShortcodeGuide());
+});
 Hooks.on('renderItemSheet', addEncryptEditorControls);
 Hooks.on('renderApplication', (app, html) => {
 	const documentName = app.document?.documentName || app.object?.documentName;
@@ -762,5 +795,10 @@ Hooks.on('renderApplication', (app, html) => {
 });
 Hooks.on('renderChatMessage', (_message, html) => {
 	const root = html?.find ? html : $(html);
+	// Add this per viewer, so players never receive a GM-only control.
+	root.find('[data-primer-action="gm-settings"]').remove();
+	if (game.user.isGM) {
+		root.find('.primerencrypt-check-grid').after('<button type="button" class="primerencrypt-gm-settings" data-primer-action="gm-settings">GM Settings</button>');
+	}
 	root.find('[data-primer-action]').off(`click.${MODULE_ID}`).on(`click.${MODULE_ID}`, handlePrimerCardClick);
 });
