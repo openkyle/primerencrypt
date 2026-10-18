@@ -556,6 +556,7 @@ class PrimerEncryptMenu extends FormApplication {
 	async _renderInner(data) {
 		const html = `
 			<form class="primerencrypt-settings">
+				${primerShortcodeGuide()}
 				<section class="primerencrypt-section">
 					<label>Encryption Method</label>
 					<select name="method" ${data.isGM ? '' : 'disabled'}>
@@ -726,6 +727,16 @@ function duplicateCipherLetters(cipher) {
 	return duplicates;
 }
 
+function primerShortcodeGuide() {
+	return `<section class="primerencrypt-section primerencrypt-shortcode-guide">
+		<h3>Writing Encrypted Text</h3>
+		<p>Wrap text in <code>@encrypt[ ]</code> in journal entries, item descriptions, or chat messages.</p>
+		<p>Example: <code>@encrypt[The old door opens at midnight.]</code></p>
+		<p>Wherever the encrypted text is displayed, the GM can click it to cycle through the players' view, the full cipher, and the plain translation. This changes only the GM's view.</p>
+		<p>Players cannot click to reveal the translation. They see learned letters in cleartext and unknown letters encrypted.</p>
+	</section>`;
+}
+
 function registerSettings() {
 	game.settings.register(MODULE_ID, 'method', {
 		name: 'Encryption Method',
@@ -772,6 +783,11 @@ Hooks.once('ready', () => {
 });
 Hooks.on('dnd5e.preItemUsageConsumption', processPrimer);
 Hooks.on('dnd5e.useItem', processUsedPrimer);
+Hooks.on('renderSettingsConfig', (_app, html) => {
+	const root = html?.find ? html : $(html);
+	root.find('.primerencrypt-shortcode-guide').remove();
+	root.find('button[data-key="primerencrypt.menu"]').closest('.form-group').after(primerShortcodeGuide());
+});
 Hooks.on('renderItemSheet', addEncryptEditorControls);
 Hooks.on('renderApplication', (app, html) => {
 	const documentName = app.document?.documentName || app.object?.documentName;

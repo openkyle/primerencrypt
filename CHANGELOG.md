@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a shortcode guide to the module settings section and Primer Encrypt pane, with an example and GM-only translation click behavior.
+
 - Added a full-width GM Settings button beneath primer checks, visible only to GMs, opening the Primer Encrypt settings pane.
 
 - Announce newly learned letters in a persistent chat card instead of a screen notification, including random letters awarded after failed checks.
