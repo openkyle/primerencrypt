@@ -1,0 +1,36 @@
+name: Publish Foundry release
+on:
+  push:
+    branches: [main]
+    paths: [module.json, .github/workflows/release.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: foundry-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test
+        run: node --test tests/*.test.cjs
+      - name: Package and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION=$(node -p "require('./module.json').version")
+          TAG="v$VERSION"
+          mkdir -p dist
+          cp module.json dist/module.json
+          zip -r dist/primerencrypt.zip module.json main.js style.css README.md CHANGELOG.md packs
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Primer Encrypt $VERSION" --notes "Foundry module update. Install using the module.json manifest asset." --latest
+          fi
+          gh release upload "$TAG" dist/module.json dist/primerencrypt.zip --clobber
+          gh release edit "$TAG" --latest
