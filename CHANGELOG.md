@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.15
 
 - Added a shortcode guide to the module settings section and Primer Encrypt pane, with an example and GM-only translation click behavior.
 
